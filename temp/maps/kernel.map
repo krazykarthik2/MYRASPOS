@@ -1,0 +1,162 @@
+
+There are no discarded input sections
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD temp/objects/start.o
+LOAD temp/objects/kernel.o
+LOAD temp/objects/uart.o
+LOAD temp/objects/palloc.o
+LOAD temp/objects/kmalloc.o
+LOAD temp/objects/ramfs.o
+LOAD temp/objects/lib.o
+LOAD temp/objects/syscall.o
+LOAD temp/objects/sched.o
+LOAD temp/objects/panic.o
+                0x40000000                        . = 0x40000000
+
+.text           0x40000000     0x12bc
+ *(.text.boot)
+ .text.boot     0x40000000       0x34 temp/objects/start.o
+                0x40000000                _start
+ *(.text .text.*)
+ .text          0x40000034        0x0 temp/objects/start.o
+ .text          0x40000034       0xfc temp/objects/kernel.o
+                0x40000034                kernel_main
+ .text          0x40000130      0x160 temp/objects/uart.o
+                0x40000188                uart_putc
+                0x400001e4                uart_puts
+                0x40000254                panic
+ .text          0x40000290      0x198 temp/objects/palloc.o
+                0x40000290                palloc_init
+                0x40000338                palloc_alloc
+                0x400003c4                palloc_free
+ .text          0x40000428      0x1f0 temp/objects/kmalloc.o
+                0x40000428                kmalloc_init
+                0x400004b4                kmalloc
+                0x400005b8                kfree
+ .text          0x40000618      0x414 temp/objects/ramfs.o
+                0x40000618                ramfs_init
+                0x400006c4                ramfs_create
+                0x4000078c                ramfs_write
+                0x4000089c                ramfs_read
+                0x4000095c                ramfs_remove
+ .text          0x40000a2c      0x270 temp/objects/lib.o
+                0x40000a2c                memset
+                0x40000a90                memcpy
+                0x40000b04                strncpy
+                0x40000bcc                strncmp
+ .text          0x40000c9c      0x210 temp/objects/syscall.o
+                0x40000c9c                syscall_init
+                0x40000cf4                syscall_register
+                0x40000d44                syscall_handle
+ .text          0x40000eac      0x238 temp/objects/sched.o
+                0x40000eac                scheduler_init
+                0x40000ef8                task_create
+                0x40000fe8                schedule
+                0x400010c0                yield
+ .text          0x400010e4      0x1d8 temp/objects/panic.o
+                0x400011f0                panic_with_trace
+
+.glue_7         0x400012bc        0x0
+ .glue_7        0x400012bc        0x0 linker stubs
+
+.glue_7t        0x400012bc        0x0
+ .glue_7t       0x400012bc        0x0 linker stubs
+
+.vfp11_veneer   0x400012bc        0x0
+ .vfp11_veneer  0x400012bc        0x0 linker stubs
+
+.v4_bx          0x400012bc        0x0
+ .v4_bx         0x400012bc        0x0 linker stubs
+
+.iplt           0x400012bc        0x0
+ .iplt          0x400012bc        0x0 temp/objects/start.o
+
+.rodata         0x400012bc       0x60
+ *(.rodata .rodata.*)
+ .rodata        0x400012bc        0xb temp/objects/kernel.o
+ *fill*         0x400012c7        0x1 
+ .rodata        0x400012c8       0x1d temp/objects/uart.o
+ *fill*         0x400012e5        0x3 
+ .rodata        0x400012e8       0x34 temp/objects/panic.o
+
+.rel.dyn        0x4000131c        0x0
+ .rel.iplt      0x4000131c        0x0 temp/objects/start.o
+
+.data           0x4000131c        0x4
+ *(.data .data.*)
+ .data          0x4000131c        0x0 temp/objects/start.o
+ .data          0x4000131c        0x0 temp/objects/kernel.o
+ .data          0x4000131c        0x0 temp/objects/uart.o
+ .data          0x4000131c        0x0 temp/objects/palloc.o
+ .data          0x4000131c        0x0 temp/objects/kmalloc.o
+ .data          0x4000131c        0x0 temp/objects/ramfs.o
+ .data          0x4000131c        0x0 temp/objects/lib.o
+ .data          0x4000131c        0x0 temp/objects/syscall.o
+ .data          0x4000131c        0x4 temp/objects/sched.o
+ .data          0x40001320        0x0 temp/objects/panic.o
+
+.igot.plt       0x40001320        0x0
+ .igot.plt      0x40001320        0x0 temp/objects/start.o
+
+.bss            0x40001320     0x4118
+                0x40001320                        __bss_start = .
+ *(.bss .bss.*)
+ .bss           0x40001320        0x0 temp/objects/start.o
+ .bss           0x40001320        0x0 temp/objects/kernel.o
+ .bss           0x40001320        0x0 temp/objects/uart.o
+ .bss           0x40001320     0x4008 temp/objects/palloc.o
+ .bss           0x40005328        0x4 temp/objects/kmalloc.o
+ .bss           0x4000532c        0x4 temp/objects/ramfs.o
+ .bss           0x40005330        0x0 temp/objects/lib.o
+ .bss           0x40005330      0x100 temp/objects/syscall.o
+ .bss           0x40005430        0x8 temp/objects/sched.o
+ .bss           0x40005438        0x0 temp/objects/panic.o
+ *(COMMON)
+                0x40005438                        __bss_end = .
+                0x40005438                        . = ALIGN (0x8)
+                0x40009438                        . = (. + 0x4000)
+                0x40009438                        stack_top = .
+OUTPUT(temp/elfs/kernel.elf elf32-littlearm)
+LOAD linker stubs
+
+.ARM.attributes
+                0x00000000       0x31
+ .ARM.attributes
+                0x00000000       0x23 temp/objects/start.o
+ .ARM.attributes
+                0x00000023       0x35 temp/objects/kernel.o
+ .ARM.attributes
+                0x00000058       0x35 temp/objects/uart.o
+ .ARM.attributes
+                0x0000008d       0x35 temp/objects/palloc.o
+ .ARM.attributes
+                0x000000c2       0x35 temp/objects/kmalloc.o
+ .ARM.attributes
+                0x000000f7       0x35 temp/objects/ramfs.o
+ .ARM.attributes
+                0x0000012c       0x35 temp/objects/lib.o
+ .ARM.attributes
+                0x00000161       0x35 temp/objects/syscall.o
+ .ARM.attributes
+                0x00000196       0x35 temp/objects/sched.o
+ .ARM.attributes
+                0x000001cb       0x35 temp/objects/panic.o
+
+.comment        0x00000000       0x12
+ .comment       0x00000000       0x12 temp/objects/kernel.o
+                                 0x13 (size before relaxing)
+ .comment       0x00000012       0x13 temp/objects/uart.o
+ .comment       0x00000012       0x13 temp/objects/palloc.o
+ .comment       0x00000012       0x13 temp/objects/kmalloc.o
+ .comment       0x00000012       0x13 temp/objects/ramfs.o
+ .comment       0x00000012       0x13 temp/objects/lib.o
+ .comment       0x00000012       0x13 temp/objects/syscall.o
+ .comment       0x00000012       0x13 temp/objects/sched.o
+ .comment       0x00000012       0x13 temp/objects/panic.o

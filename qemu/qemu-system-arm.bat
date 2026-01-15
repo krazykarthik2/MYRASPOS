@@ -1,0 +1,1 @@
+"C:\msys64\ucrt64\bin\qemu-system-arm.exe" %*
