@@ -1,25 +1,35 @@
 #include "kernel.h"
 #include "uart.h"
-void uart_puts(const char *);  // force prototype
+#include "kmalloc.h"
+#include "palloc.h"
+#include "sched.h"
+#include "syscall.h"
+#include "ramfs.h"
+
+/* Small static page pool for palloc */
+static unsigned char palloc_pool[PAGE_SIZE * 16];
+
+/* forward declaration of init task in init.c */
+extern void init_main(void *arg);
 
 void kernel_main(void) {
-    const char *ptr = "Hello";
-    char test_msg[] = {'H', 'e', 'l', 'l', 'o', '\0'};
-    uart_puts(test_msg);
-    // 1. Print a manual string (We know this works)
-    char hi[] = "Hi";
-    uart_puts(hi);
+    /* basic subsystem init */
+    palloc_init(palloc_pool, 16);
+    kmalloc_init();
+    ramfs_init();
 
-    // 2. Print the ADDRESS of the "Hello" string in hex
-    // If this prints 0x4000xxxx, the pointer is correct.
-    // If it prints something like 0x0000xxxx, your linker is wrong.
-    unsigned int addr = (unsigned int)ptr;
-    for(int i = 28; i >= 0; i -= 4) {
-        unsigned int nibble = (addr >> i) & 0xF;
-        uart_putc(nibble < 10 ? '0' + nibble : 'A' + (nibble - 10));
+    /* scheduler */
+    scheduler_init();
+
+    /* syscalls */
+    syscall_init();
+    syscall_register_defaults();
+
+    /* create init task which will run a shell */
+    task_create(init_main, NULL);
+
+    /* run scheduler loop cooperatively */
+    while (1) {
+        schedule();
     }
-    
-    uart_putc('\n');
-    uart_puts(ptr); // Try again
-    while (1);
 }

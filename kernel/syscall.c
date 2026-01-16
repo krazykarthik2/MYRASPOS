@@ -42,5 +42,37 @@ static uintptr_t sys_ramfs_write(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
     size_t len = (size_t)a2;
     return (uintptr_t)ramfs_write(name, buf, len, 0);
 }
+static uintptr_t sys_ramfs_read(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *name = (const char *)a0;
+    void *buf = (void *)a1;
+    size_t len = (size_t)a2;
+    return (uintptr_t)ramfs_read(name, buf, len, 0);
+}
+static uintptr_t sys_ramfs_remove(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
+    const char *name = (const char *)a0;
+    return (uintptr_t)ramfs_remove(name);
+}
+static uintptr_t sys_ramfs_mkdir(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
+    const char *name = (const char *)a0;
+    return (uintptr_t)ramfs_mkdir(name);
+}
 
+static uintptr_t sys_ramfs_list(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *dir = (const char *)a0;
+    char *buf = (char *)a1;
+    size_t len = (size_t)a2;
+    return (uintptr_t)ramfs_list(dir, buf, len);
+}
 // Optionally register default syscalls during init from outside
+
+void syscall_register_defaults(void) {
+    syscall_register(SYS_PUTS, sys_puts);
+    syscall_register(SYS_RAMFS_CREATE, sys_ramfs_create);
+    syscall_register(SYS_RAMFS_WRITE, sys_ramfs_write);
+    syscall_register(SYS_RAMFS_READ, sys_ramfs_read); // Register read syscall with number 4
+    syscall_register(SYS_RAMFS_REMOVE, sys_ramfs_remove);
+    syscall_register(SYS_RAMFS_MKDIR, sys_ramfs_mkdir);
+    syscall_register(SYS_RAMFS_LIST, sys_ramfs_list);
+}

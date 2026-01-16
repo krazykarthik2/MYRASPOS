@@ -27,6 +27,25 @@ void uart_puts(const char *s) {
     }
 }
 
+char uart_getc(void) {
+#ifndef qemu
+    /* FR bit 4 == RXFE (receive FIFO empty) */
+    while (mmio_read(UART_FR) & (1 << 4));
+#endif
+    unsigned int v = mmio_read(UART_DR);
+    return (char)(v & 0xFF);
+}
+
+int uart_haschar(void) {
+#ifndef qemu
+    /* FR bit 4 == RXFE (receive FIFO empty) */
+    return !(mmio_read(UART_FR) & (1 << 4));
+#else
+    /* in qemu, assume blocking read only */
+    return 0;
+#endif
+}
+
 void panic(const char *reason) {
     uart_puts("\n[PANIC] ");
     uart_puts(reason);
