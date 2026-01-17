@@ -20,6 +20,8 @@ void task_block_current_until(uint32_t wake_tick);
 void scheduler_tick_advance(uint32_t delta_ms);
 /* get current scheduler tick (ms) */
 uint32_t scheduler_get_tick(void);
+/* request a preempt from IRQ handler */
+void scheduler_request_preempt(void);
 /* collect task ids into out array, return count (max entries limited by 'max') */
 int task_list(int *out, int max);
 /* collect per-task stats: ids, run_counts, start_ticks. Returns number of tasks.

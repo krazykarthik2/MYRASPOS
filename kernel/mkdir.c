@@ -1,6 +1,7 @@
 #include "programs.h"
 #include "init.h"
 #include "lib.h"
+#include "kmalloc.h"
 #include <stddef.h>
 
 int prog_mkdir(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {

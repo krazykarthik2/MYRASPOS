@@ -3,6 +3,7 @@
 #include "ramfs.h"
 #include "service.h"
 #include "timer.h"
+#include "framebuffer.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -30,6 +31,7 @@ static uintptr_t sys_puts(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
     (void)a1; (void)a2;
     const char *s = (const char *)a0;
     uart_puts(s);
+    if (fb_is_init()) fb_puts(s);
     return 0;
 }
 

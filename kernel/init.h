@@ -10,6 +10,7 @@ int init_ramfs_read(const char *name, void *buf, size_t len);
 int init_ramfs_remove(const char *name);
 int init_ramfs_mkdir(const char *name);
 int init_ramfs_list(const char *dir, char *buf, size_t len);
+int init_ramfs_remove_recursive(const char *path);
 
 /* resolve a possibly-relative path to an allocated absolute path using the
 	shell's current working directory. Caller must free with kfree(). */

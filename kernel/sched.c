@@ -23,6 +23,11 @@ static struct task *task_cur = NULL;
 static int next_task_id = 1;
 static int scheduler_tick = 0;
 static int total_run_counts = 0;
+static volatile int preempt_requested = 0;
+
+void scheduler_request_preempt(void) {
+    preempt_requested = 1;
+}
 
 int scheduler_init(void) {
     task_head = NULL;
@@ -57,6 +62,12 @@ void schedule(void) {
     timer_poll_and_advance();
     irq_poll_and_dispatch();
     if (!task_head) return;
+    /* if IRQ requested preempt, force advance to next runnable task */
+    if (preempt_requested) {
+        preempt_requested = 0;
+        if (!task_cur) task_cur = task_head;
+        else task_cur = task_cur->next;
+    }
     if (!task_cur) task_cur = task_head;
     else task_cur = task_cur->next;
     /* skip blocked tasks (fn == NULL) */

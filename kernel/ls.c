@@ -2,6 +2,7 @@
 #include "init.h"
 #include "lib.h"
 #include "glob.h"
+#include "kmalloc.h"
 #include <stddef.h>
 
 static int ls_error_notfound(const char *arg, char *out, size_t out_cap);

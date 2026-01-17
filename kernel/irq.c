@@ -1,6 +1,8 @@
 #include "irq.h"
 #include "uart.h"
 #include <stdint.h>
+#include <stddef.h>
+#include "sched.h"
 
 /* Very small IRQ "dispatcher" implemented as a polled loop to keep
    the existing code simple. Real hardware IRQ entry/exit and VBAR
@@ -40,4 +42,14 @@ void irq_poll_and_dispatch(void) {
     }
     /* USB IRQ stub: dispatch irq_num == 2 if any (no real USB hardware here) */
     /* Timer IRQ handled by timer_poll_and_advance / scheduler wake logic */
+}
+
+/* Called from assembly IRQ entry. Request a scheduler preemption and
+   advance a software tick. Keep this function small and safe. */
+void irq_entry_c(void) {
+    /* quick debug: send a single dot so we can see interrupts firing */
+    uart_puts(".");
+    /* Advance scheduler tick by 1ms and request preempt */
+    scheduler_tick_advance(1);
+    scheduler_request_preempt();
 }

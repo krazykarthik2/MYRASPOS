@@ -1,15 +1,16 @@
 #include "uart.h"
+#include <stdint.h>
 
-#define UART_BASE 0x09000000
+#define UART_BASE 0x09000000ULL
 #define UART_DR   (UART_BASE + 0x00)
 #define UART_FR   (UART_BASE + 0x18)
 
-static inline unsigned int mmio_read(unsigned int reg) {
-    return *(volatile unsigned int *)reg;
+static inline uint32_t mmio_read(uintptr_t reg) {
+    return *(volatile uint32_t *)reg;
 }
 
-static inline void mmio_write(unsigned int reg, unsigned int val) {
-    *(volatile unsigned int *)reg = val;
+static inline void mmio_write(uintptr_t reg, uint32_t val) {
+    *(volatile uint32_t *)reg = val;
 }
 
 void uart_putc(char c) {
@@ -51,4 +52,16 @@ void panic(const char *reason) {
     uart_puts(reason);
     uart_puts("\nSystem halted.\n");
     while (1);
+}
+
+void uart_put_hex(unsigned int v) {
+    char buf[9];
+    const char *hex = "0123456789ABCDEF";
+    for (int i = 0; i < 8; ++i) {
+        int shift = (7 - i) * 4;
+        unsigned int nib = (v >> shift) & 0xF;
+        buf[i] = hex[nib];
+    }
+    buf[8] = '\0';
+    uart_puts(buf);
 }

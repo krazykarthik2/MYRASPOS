@@ -1,0 +1,1 @@
+"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-ld.exe" %*

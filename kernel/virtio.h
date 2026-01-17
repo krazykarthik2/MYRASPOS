@@ -1,0 +1,13 @@
+/* Minimal virtio helper definitions (skeleton) */
+#ifndef VIRTIO_H
+#define VIRTIO_H
+
+#include <stdint.h>
+
+int virtio_init(void);
+int virtio_gpu_init(void);
+void virtio_gpu_flush(void);
+int virtio_gpu_get_width(void);
+int virtio_gpu_get_height(void);
+
+#endif

@@ -10,4 +10,7 @@ int irq_register(int irq_num, irq_handler_fn fn, void *arg);
 /* poll for pending interrupts and dispatch handlers (called from scheduler loop) */
 void irq_poll_and_dispatch(void);
 
+/* entry called from assembly IRQ vector */
+void irq_entry_c(void);
+
 #endif
