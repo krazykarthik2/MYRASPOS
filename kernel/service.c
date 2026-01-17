@@ -38,25 +38,27 @@ struct svc_task_arg { char **argv; int argc; struct service_entry *svc; void *me
 static void service_task_fn(void *arg) {
     struct svc_task_arg *a = (struct svc_task_arg *)arg;
     /* debug: announce service task start */
-    if (a && a->svc) {
-        uart_puts("[svc] task start: "); uart_puts(a->svc->name); uart_puts("\n");
-    } else {
-        uart_puts("[svc] task start: (no svc)\n");
+    if (!a->svc || !a->svc->redir_target) {
+        if (a && a->svc) {
+            uart_puts("[svc] task start: "); uart_puts(a->svc->name); uart_puts("\n");
+        } else {
+            uart_puts("[svc] task start: (no svc)\n");
+        }
     }
     /* find program and run it */
     if (a->argc > 0) {
         prog_fn_t pfn = NULL;
         if (program_lookup(a->argv[0], &pfn) == 0 && pfn) {
-            uart_puts("[svc] program found: "); uart_puts(a->argv[0]); uart_puts("\n");
+            if (!a->svc || !a->svc->redir_target) {
+                uart_puts("[svc] program found: "); uart_puts(a->argv[0]); uart_puts("\n");
+            }
             char out[256];
             int wrote = pfn(a->argc, a->argv, NULL, 0, out, sizeof(out));
             if (wrote > 0) {
                 /* ensure NUL termination then print to console or file */
                 size_t w = (wrote < (int)sizeof(out)-1) ? (size_t)wrote : (size_t)sizeof(out)-1;
                 out[w] = '\0';
-                uart_puts("[svc] program wrote: "); uart_puts(out);
                 if (a->svc && a->svc->redir_target) {
-                    uart_puts("[svc] writing to target: "); uart_puts(a->svc->redir_target); uart_puts("\n");
                     const char *tgt = a->svc->redir_target;
                     char *full = NULL;
                     if (tgt[0] == '/') {
@@ -81,18 +83,22 @@ static void service_task_fn(void *arg) {
                         ramfs_remove(full);
                         ramfs_create(full);
                         ramfs_write(full, out, w, 0);
-                        uart_puts("[svc] write complete\n");
+                        if (!a->svc || !a->svc->redir_target) uart_puts("[svc] write complete\n");
                         kfree(full);
                     }
-                } else {
+                } else if (!a->svc || !a->svc->redir_target) {
                     uart_puts(out);
                 }
+            } else if (!a->svc || !a->svc->redir_target) {
+                uart_puts("[svc] program wrote nothing\n");
             }
         } else {
-            uart_puts("[svc] program lookup failed for: "); uart_puts(a->argv[0]); uart_puts("\n");
+            if (!a->svc || !a->svc->redir_target) {
+                uart_puts("[svc] program lookup failed for: "); uart_puts(a->argv[0]); uart_puts("\n");
+            }
             /* fallback for simple builtins like 'echo' when program isn't registered */
             if (a->argc > 0 && strcmp(a->argv[0], "echo") == 0) {
-                uart_puts("[svc] fallback echo\n");
+                if (!a->svc || !a->svc->redir_target) uart_puts("[svc] fallback echo\n");
                 char out[256]; size_t off = 0;
                 for (int ai = 1; ai < a->argc; ++ai) {
                     size_t l = strlen(a->argv[ai]);
@@ -103,7 +109,6 @@ static void service_task_fn(void *arg) {
                 if (off < sizeof(out)) out[off] = '\0'; else out[sizeof(out)-1] = '\0';
                 if (a->svc && a->svc->redir_target) {
                     const char *tgt = a->svc->redir_target;
-                    uart_puts("[svc] fallback writing to: "); uart_puts(tgt); uart_puts("\n");
                     char *full = NULL;
                     if (tgt[0] == '/') {
                         full = kmalloc(strlen(tgt) + 1);
@@ -124,18 +129,20 @@ static void service_task_fn(void *arg) {
                         ramfs_remove(full);
                         ramfs_create(full);
                         ramfs_write(full, out, off, 0);
-                        uart_puts("[svc] fallback write complete\n");
+                        if (!a->svc || !a->svc->redir_target) uart_puts("[svc] fallback write complete\n");
                         kfree(full);
                     }
-                } else {
+                } else if (!a->svc || !a->svc->redir_target) {
                     uart_puts(out);
                 }
             }
         }
     }
-    uart_puts("[svc] task exiting\n");
     /* mark service as stopped */
     if (a->svc) a->svc->pid = 0;
+    /* disable future runs of this task (set fn to NULL) */
+    int curid = task_current_id();
+    if (curid > 0) task_set_fn_null(curid);
     /* free single allocated block (contains argv pointers + strings + struct) */
     if (a->mem) kfree(a->mem);
 }
@@ -160,6 +167,8 @@ int service_load_unit(const char *path) {
     const char *p = strstr(buf, "ExecStart=");
     if (!p) return -1;
     p += strlen("ExecStart=");
+    /* skip leading spaces */
+    while (*p == ' ') ++p;
     /* copy command until newline */
     const char *e = p;
     while (*e && *e != '\n' && *e != '\r') ++e;
@@ -187,10 +196,15 @@ int service_load_unit(const char *path) {
         while (*rt == ' ') ++rt;
         if (*rt) {
             size_t tlen = strlen(rt);
-            /* strip trailing whitespace/newline */
-            while (tlen > 0 && (rt[tlen-1] == '\n' || rt[tlen-1] == '\r' || rt[tlen-1] == ' ')) { rt[tlen-1] = '\0'; --tlen; }
-            target = kmalloc(tlen + 1);
-            if (target) memcpy(target, rt, tlen + 1);
+            /* strip trailing whitespace, quotes, and newlines */
+            while (tlen > 0 && (rt[tlen-1] == '\n' || rt[tlen-1] == '\r' || rt[tlen-1] == ' ' || rt[tlen-1] == '"' || rt[tlen-1] == '\'')) {
+                rt[tlen-1] = '\0';
+                --tlen;
+            }
+            if (tlen > 0) {
+                target = kmalloc(tlen + 1);
+                if (target) memcpy(target, rt, tlen + 1);
+            }
         }
     }
 
@@ -264,9 +278,18 @@ int services_load_all(void) {
 
 int service_start(const char *name) {
     struct service_entry *s = find_service(name);
-    if (!s) return -1;
+    if (!s) {
+        uart_puts("[svc] start failed: service not found: "); uart_puts(name); uart_puts("\n");
+        return -1;
+    }
     if (s->pid != 0) return 0; /* already running */
-    if (!s->exec) return -1;
+    if (!s->exec) {
+        uart_puts("[svc] start failed: no exec string for: "); uart_puts(name); uart_puts("\n");
+        return -1;
+    }
+    if (!s->redir_target) {
+        uart_puts("[svc] starting: "); uart_puts(name); uart_puts("\n");
+    }
     /* parse exec into argv (simple split by spaces) and allocate one block
        to avoid many small kmallocs which fragment the heap. Block layout:
        [struct svc_task_arg][argv pointers array][strings buffer]
@@ -302,7 +325,7 @@ int service_start(const char *name) {
     }
     argv[ai] = NULL;
     arg->argv = argv; arg->argc = argc; arg->svc = s; arg->mem = block;
-    int pid = task_create(service_task_fn, arg);
+    int pid = task_create(service_task_fn, arg, name);
     if (pid <= 0) {
         /* cleanup single block */
         if (block) kfree(block);
@@ -362,6 +385,23 @@ int service_reload(const char *name) {
 
 int service_enable(const char *name) {
     struct service_entry *s = find_service(name);
+    if (!s) {
+        /* try to load it first */
+        char full[256];
+        const char *pref = "/etc/systemd/system/";
+        const char *suf = ".service";
+        size_t plen = strlen(pref);
+        size_t nlen = strlen(name);
+        size_t slen = strlen(suf);
+        if (plen + nlen + slen + 1 < sizeof(full)) {
+            memcpy(full, pref, plen);
+            memcpy(full + plen, name, nlen);
+            memcpy(full + plen + nlen, suf, slen);
+            full[plen + nlen + slen] = '\0';
+            service_load_unit(full);
+        }
+        s = find_service(name);
+    }
     if (!s) return -1;
     s->enabled = 1;
     return 0;
@@ -369,6 +409,23 @@ int service_enable(const char *name) {
 
 int service_disable(const char *name) {
     struct service_entry *s = find_service(name);
+    if (!s) {
+        /* try to load it first */
+        char full[256];
+        const char *pref = "/etc/systemd/system/";
+        const char *suf = ".service";
+        size_t plen = strlen(pref);
+        size_t nlen = strlen(name);
+        size_t slen = strlen(suf);
+        if (plen + nlen + slen + 1 < sizeof(full)) {
+            memcpy(full, pref, plen);
+            memcpy(full + plen, name, nlen);
+            memcpy(full + plen + nlen, suf, slen);
+            full[plen + nlen + slen] = '\0';
+            service_load_unit(full);
+        }
+        s = find_service(name);
+    }
     if (!s) return -1;
     s->enabled = 0;
     return 0;
@@ -407,6 +464,8 @@ int service_status(const char *name, char *buf, size_t len) {
     l = strlen(label5); if (p + l < sizeof(tmp)) { memcpy(tmp + p, label5, l); p += l; }
     const char *ac = (s->pid != 0) ? "running" : "inactive"; l = strlen(ac); if (p + l < sizeof(tmp)) { memcpy(tmp + p, ac, l); p += l; }
     if (p + 1 < sizeof(tmp)) tmp[p++] = '\n';
+
+    /* Redirect field removed for cleaner status output */
 
     size_t cp = p; if (cp >= len) cp = len - 1; if (cp > 0) memcpy(buf, tmp, cp); if (len > 0) buf[cp] = '\0';
     return (int)cp;

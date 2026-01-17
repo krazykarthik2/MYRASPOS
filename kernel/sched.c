@@ -15,6 +15,8 @@ struct task {
     uint32_t wake_tick;      /* when to wake (monotonic ms) */
     task_fn saved_fn;        /* saved function when blocked */
     char name[16];
+    int is_running;
+    void *tty;
     struct task *next;
 };
 
@@ -36,7 +38,7 @@ int scheduler_init(void) {
     return 0;
 }
 
-int task_create(task_fn fn, void *arg) {
+int task_create(task_fn fn, void *arg, const char *name) {
     struct task *t = kmalloc(sizeof(*t));
     if (!t) return -1;
     t->id = next_task_id++;
@@ -44,9 +46,21 @@ int task_create(task_fn fn, void *arg) {
     t->arg = arg;
     t->run_count = 0;
     t->start_tick = scheduler_tick;
-    /* default name: task<ID> */
-    int nid = t->id; int p=0; char buf[16]; if (nid==0) { buf[p++]='0'; } else { int digs[8]; int di=0; while (nid>0 && di<8) { digs[di++]=nid%10; nid/=10; } for (int j=di-1;j>=0;--j) buf[p++]=(char)('0'+digs[j]); }
-    buf[p]='\0'; strcpy(t->name, "task"); size_t nl=strlen(t->name); if (nl + p + 1 < sizeof(t->name)) memcpy(t->name+nl, buf, p+1);
+    t->is_running = 0;
+    t->tty = NULL;
+    
+    if (name) {
+        strncpy(t->name, name, sizeof(t->name) - 1);
+        t->name[sizeof(t->name) - 1] = '\0';
+    } else {
+        /* default name: task<ID> */
+        int nid = t->id; int p=0; char buf[16]; if (nid==0) { buf[p++]='0'; } else { int digs[8]; int di=0; while (nid>0 && di<8) { digs[di++]=nid%10; nid/=10; } for (int j=di-1;j>=0;--j) buf[p++]=(char)('0'+digs[j]); }
+        buf[p]='\0'; 
+        strcpy(t->name, "task"); 
+        size_t nl=strlen(t->name); 
+        if (nl + p < sizeof(t->name)) memcpy(t->name+nl, buf, p+1);
+    }
+
     if (!task_head) {
         task_head = t;
         t->next = t;
@@ -62,28 +76,34 @@ void schedule(void) {
     timer_poll_and_advance();
     irq_poll_and_dispatch();
     if (!task_head) return;
-    /* if IRQ requested preempt, force advance to next runnable task */
-    if (preempt_requested) {
-        preempt_requested = 0;
-        if (!task_cur) task_cur = task_head;
-        else task_cur = task_cur->next;
-    }
+
+    /* Save global context to handle nested schedule() calls (from yield) */
+    struct task *prev_cur = task_cur;
+
     if (!task_cur) task_cur = task_head;
     else task_cur = task_cur->next;
-    /* skip blocked tasks (fn == NULL) */
+
+    /* skip blocked tasks (fn == NULL) or tasks already running on the stack */
     int attempts = 0;
-    while (task_cur && task_cur->fn == NULL && attempts < 1000) {
+    while (task_cur && (task_cur->fn == NULL || task_cur->is_running) && attempts < 1000) {
         task_cur = task_cur->next;
         attempts++;
-        if (task_cur == NULL) return;
+        if (task_cur == NULL) { task_cur = prev_cur; return; }
     }
+
     /* run task function cooperatively */
-    if (task_cur && task_cur->fn) {
+    if (task_cur && task_cur->fn && !task_cur->is_running) {
         /* account run for this task */
         task_cur->run_count++;
         total_run_counts++;
+        
+        task_cur->is_running = 1;
         task_cur->fn(task_cur->arg);
+        task_cur->is_running = 0;
     }
+
+    /* Restore global context for the caller */
+    task_cur = prev_cur;
 }
 
 void yield(void) {
@@ -138,6 +158,25 @@ int task_current_id(void) {
     return task_cur->id;
 }
 
+void task_set_tty(int id, void *tty) {
+    if (!task_head) return;
+    struct task *t = task_head;
+    do {
+        if (t->id == id) { t->tty = tty; return; }
+        t = t->next;
+    } while (t && t != task_head);
+}
+
+void* task_get_tty(int id) {
+    if (!task_head) return NULL;
+    struct task *t = task_head;
+    do {
+        if (t->id == id) return t->tty;
+        t = t->next;
+    } while (t && t != task_head);
+    return NULL;
+}
+
 int task_set_fn_null(int id) {
     if (!task_head) return -1;
     struct task *t = task_head;
@@ -175,7 +214,7 @@ uint32_t scheduler_get_tick(void) {
     return (uint32_t)scheduler_tick;
 }
 
-int task_stats(int *ids_out, int *run_counts_out, int *start_ticks_out, int max, int *total_runs_out) {
+int task_stats(int *ids_out, int *run_counts_out, int *start_ticks_out, int *runnable_out, char *names_out, int max, int *total_runs_out) {
     if (!task_head || max <= 0) { if (total_runs_out) *total_runs_out = total_run_counts; return 0; }
     int n = 0;
     struct task *t = task_head;
@@ -184,6 +223,11 @@ int task_stats(int *ids_out, int *run_counts_out, int *start_ticks_out, int max,
             if (ids_out) ids_out[n] = t->id;
             if (run_counts_out) run_counts_out[n] = t->run_count;
             if (start_ticks_out) start_ticks_out[n] = t->start_tick;
+            if (runnable_out) runnable_out[n] = (t->fn != NULL);
+            if (names_out) {
+                strncpy(names_out + n * 16, t->name, 15);
+                (names_out + n * 16)[15] = '\0';
+            }
         }
         n++;
         t = t->next;

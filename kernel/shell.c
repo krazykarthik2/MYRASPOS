@@ -111,7 +111,7 @@ static char *normalize_abs_path_alloc(const char *path) {
     char *out = kmalloc(len + 2);
     if (!out) return NULL;
     /* ensure path starts with '/' */
-    size_t i = 0; size_t op = 0;
+    size_t op = 0;
     if (len == 0) { out[0] = '/'; out[1] = '\0'; return out; }
     if (path[0] != '/') {
         /* make it absolute by prefixing slash */
@@ -165,7 +165,8 @@ static int builtin_lookup(const char *name, cmd_fn_t *out) {
 static int shell_read_line(char *buf, size_t max) {
     size_t i = 0;
     while (i + 1 < max) {
-        char c = uart_getc();
+        char c = init_getc();
+        if (c == 0) { yield(); continue; }
         if (c == '\r' || c == '\n') { shell_puts("\n"); break; }
         if (c == '\b' || c == 127) { if (i > 0) { i--; shell_puts("\b "); shell_puts("\b"); } continue; }
         char s[2] = {c, 0}; shell_puts(s); buf[i++] = c;
@@ -174,18 +175,6 @@ static int shell_read_line(char *buf, size_t max) {
     return (int)i;
 }
 
-/* Simple tokenizer splitting by spaces, does not handle quotes */
-static int tokenize(char *s, char **argv, int max) {
-    int argc = 0;
-    while (*s && argc < max) {
-        while (*s == ' ') ++s;
-        if (!*s) break;
-        argv[argc++] = s;
-        while (*s && *s != ' ') ++s;
-        if (*s == ' ') *s++ = '\0';
-    }
-    return argc;
-}
 
 /* (old exec_command removed; using exec_command_argv + program registry) */
 
@@ -232,15 +221,9 @@ static void run_pipeline_internal(struct pipeline_job *job) {
         if (inbuf) kfree(inbuf);
         inbuf = bufs[i];
         in_len = (wrote > 0) ? (size_t)wrote : 0;
-        /* check for Ctrl+C requested by user and abort pipeline */
-        if (uart_haschar()) {
-            char ch = uart_getc();
-            if (ch == 3) { /* Ctrl+C */
-                shell_sigint = 1;
-                break;
-            }
-        }
+        /* check for interrupt flag */
         if (shell_sigint) break;
+        yield();
     }
 
     /* final output handling */
@@ -432,17 +415,20 @@ static struct pipeline_job *parse_pipeline(const char *line_in) {
 /* Builtin implementations */
 static int cmd_help(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
     (void)argc; (void)argv; (void)in; (void)in_len;
-    const char *msg = "help:";
-    for(int i=0; commands[i].name; ++i) {
-        size_t l = strlen(msg);
-        if (l + 1 < out_cap) {
-            memcpy((char *)msg + l, "\n", 1);
-            memcpy((char *)msg + l + 1, commands[i].name, strlen(commands[i].name));
-            ((char *)msg)[l + 1 + strlen(commands[i].name)] = '\0';
+    size_t off = 0;
+    const char *hdr = "commands:\n";
+    size_t hl = strlen(hdr); if (hl > out_cap) hl = out_cap; memcpy(out, hdr, hl); off += hl;
+    for (int i = 0; commands[i].name; ++i) {
+        size_t nl = strlen(commands[i].name);
+        if (off + nl + 1 < out_cap) {
+            out[off++] = ' ';
+            memcpy(out + off, commands[i].name, nl);
+            off += nl;
+            out[off++] = '\n';
         }
     }
-    ((char *)msg)[strlen(msg)] = '\n';
-    size_t m = strlen(msg); if (m > out_cap) m = out_cap; memcpy(out, msg, m); return (int)m;
+    if (off < out_cap) out[off] = '\0';
+    return (int)off;
 }
 
 static int cmd_echo(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
@@ -738,7 +724,6 @@ static int cmd_sleep(int argc, char **argv, const char *in, size_t in_len, char 
     /* coarse-grained sleep by yielding, check for Ctrl+C */
     int ticks = sec * 50; /* arbitrary ticks per second */
     for (int i = 0; i < ticks; ++i) {
-        if (uart_haschar()) { char ch = uart_getc(); if (ch == 3) { shell_sigint = 1; break; } }
         if (shell_sigint) break;
         yield();
     }
@@ -799,7 +784,11 @@ static int cmd_systemctl(int argc, char **argv, const char *in, size_t in_len, c
         if (r > 0) {
             char b[64]; int bl = 0;
             int tmp = r; char tbuf[16]; int tl = 0; if (tmp==0) { tbuf[tl++]='0'; } else { int digs[12]; int di=0; while (tmp>0 && di<12) { digs[di++]=tmp%10; tmp/=10; } for (int j=di-1;j>=0;--j) tbuf[tl++]= '0' + digs[j]; }
-            for (int i=0;i<tl;++i) b[bl++]=tbuf[i]; b[bl++]='\n'; if (bl>out_cap) bl=out_cap; memcpy(out,b,bl); return bl;
+            for (int i=0;i<tl;++i) b[bl++]=tbuf[i]; 
+            b[bl++]='\n'; 
+            if ((size_t)bl>out_cap) bl=(int)out_cap; 
+            memcpy(out,b,bl); 
+            return bl;
         } else {
             const char *s = "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
         }
@@ -811,7 +800,7 @@ static int cmd_systemctl(int argc, char **argv, const char *in, size_t in_len, c
         if (!name) { const char *u = "usage: systemctl restart <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
         char shortname[64]; char full[256]; derive_service_shortname(name, shortname, sizeof(shortname), full, sizeof(full));
         int r = init_service_restart(shortname);
-        const char *s = (r==0) ? "ok\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+        const char *s = (r >= 0) ? "ok\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
     } else if (strcmp(cmd, "reload") == 0) {
         int r;
         if (name) {
@@ -823,12 +812,15 @@ static int cmd_systemctl(int argc, char **argv, const char *in, size_t in_len, c
         if (!name) { const char *u = "usage: systemctl enable <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
         char shortname[64]; char full[256]; derive_service_shortname(name, shortname, sizeof(shortname), full, sizeof(full));
         int r = init_service_enable(shortname);
-        const char *s = (r==0) ? "enabled\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+        const char *s = (r>=0) ? "enabled\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
     } else if (strcmp(cmd, "disable") == 0) {
         if (!name) { const char *u = "usage: systemctl disable <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
         char shortname[64]; char full[256]; derive_service_shortname(name, shortname, sizeof(shortname), full, sizeof(full));
         int r = init_service_disable(shortname);
-        const char *s = (r==0) ? "disabled\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+        const char *s = (r>=0) ? "disabled\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+    } else if (strcmp(cmd, "help") == 0) {
+        const char *h = "systemctl: status, start, stop, restart, reload, enable, disable\n";
+        size_t m = strlen(h); if (m>out_cap) m=out_cap; memcpy(out, h, m); return (int)m;
     }
     const char *u = "unknown subcommand\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m;
 }
@@ -836,8 +828,9 @@ static int cmd_systemctl(int argc, char **argv, const char *in, size_t in_len, c
 /* Builtin: ps - list task ids */
 static int cmd_ps(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
     (void)argc; (void)argv; (void)in; (void)in_len;
-    int ids[32]; int runs[32]; int starts[32]; int total_runs = 0;
-    int n = task_stats(ids, runs, starts, 32, &total_runs);
+    int ids[32]; int runs[32]; int starts[32]; int runnable[32]; int total_runs = 0;
+    char names[32 * 16];
+    int n = task_stats(ids, runs, starts, runnable, names, 32, &total_runs);
     size_t off = 0;
     /* header */
     const char *hdr = "PID   %CPU  %MEM  VSZ   RSS   TTY    STAT START  TIME     COMMAND\n";
@@ -852,9 +845,8 @@ static int cmd_ps(int argc, char **argv, const char *in, size_t in_len, char *ou
         int cpu_int = cpu_per_tenth / 10;
         int cpu_frac = cpu_per_tenth % 10;
         /* %MEM/VSZ/RSS unknown in this simple kernel => 0 */
-        int mem_int = 0; int vsz = 0; int rss = 0;
         const char *tty = "ttyS0";
-        const char *stat = (run > 0) ? "R" : "S";
+        const char *stat = (runnable[i]) ? "R" : "S";
         int start = starts[i];
         /* TIME in seconds = run / 50 (ticks per second) */
         int secs = (total_runs>0) ? (run / 50) : 0;
@@ -865,7 +857,8 @@ static int cmd_ps(int argc, char **argv, const char *in, size_t in_len, char *ou
         int t = pid; char num[16]; int nl = 0; if (t==0) num[nl++]='0'; else { int digs[12]; int di=0; while (t>0 && di<12) { digs[di++]=t%10; t/=10; } for (int j=di-1;j>=0;--j) num[nl++]=(char)('0'+digs[j]); }
         /* pad to 5 */
         int pad = 5 - nl; for (int k=0;k<pad;++k) line[p++]=' ';
-        for (int k=0;k<nl;++k) line[p++]=num[k]; line[p++]=' ';
+        for (int k=0;k<nl;++k) line[p++]=num[k]; 
+        line[p++]=' ';
         /* %CPU format like 12.3 (one decimal) */
         {
             char cbuf[8]; int ci = 0;
@@ -894,7 +887,8 @@ static int cmd_ps(int argc, char **argv, const char *in, size_t in_len, char *ou
         /* convert start to digits */
         int st = start; char sn[16]; int sl=0; if (st==0) sn[sl++]='0'; else { int digs[12]; int di=0; while (st>0 && di<12) { digs[di++]=st%10; st/=10; } for (int j=di-1;j>=0;--j) sn[sl++]=(char)('0'+digs[j]); }
         int spad = 6 - sl; for (int k=0;k<spad;++k) line[p++]=' ';
-        for (int k=0;k<sl;++k) line[p++]=sn[k]; line[p++]=' ';
+        for (int k=0;k<sl;++k) line[p++]=sn[k]; 
+        line[p++]=' ';
         /* TIME mm:ss */
         char tm[8]; int tp=0; /* mm */
         if (mins >= 10) { int m1 = mins/10; int m2 = mins%10; tm[tp++]=(char)('0'+m1); tm[tp++]=(char)('0'+m2); }
@@ -902,13 +896,14 @@ static int cmd_ps(int argc, char **argv, const char *in, size_t in_len, char *ou
         tm[tp++]=':'; tm[tp++]=(char)('0'+(srem/10)); tm[tp++]=(char)('0'+(srem%10)); tm[tp]='\0';
         int tml = tp;
         for (int k=0;k<7-tml;++k) line[p++]=' ';
-        for (int k=0;k<tml;++k) line[p++]=tm[k]; line[p++]=' ';
-        /* COMMAND: task<pid> */
+        for (int k=0;k<tml;++k) line[p++]=tm[k]; 
+        line[p++]=' ';
+        /* COMMAND */
         {
-            line[p++]='t'; line[p++]='a'; line[p++]='s'; line[p++]='k';
-            int tid = pid; char idbuf[16]; int il=0; if (tid==0) idbuf[il++]='0'; else { int digs[12]; int di=0; while (tid>0 && di<12) { digs[di++]=tid%10; tid/=10; } for (int j=di-1;j>=0;--j) idbuf[il++]=(char)('0'+digs[j]); }
-            for (int k=0;k<il;++k) line[p++]=idbuf[k];
-            line[p++]='\n';
+            const char *tn = names + i * 16;
+            int tnl = strlen(tn);
+            for (int k=0; k<tnl; ++k) line[p++] = tn[k];
+            line[p++] = '\n';
         }
 
         /* copy line to out */
@@ -944,7 +939,7 @@ void shell_main(void *arg) {
         if (!job) { shell_puts("error parsing\n"); continue; }
         if (job->background) {
             /* create a background wrapper task that runs once and then disables itself */
-            int pid = task_create(background_wrapper, job);
+            int pid = task_create(background_wrapper, job, "background");
             /* print background pid */
             char bbuf[32]; int bl = 0;
             int tmp = pid; if (tmp==0) { bbuf[bl++]='0'; }

@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+static void fb_draw_scaled_glyph(const uint8_t *g, int x, int y, int scale, uint32_t color);
+
 static volatile uint32_t *fb = NULL;
 static int fb_w = 0;
 static int fb_h = 0;
@@ -85,6 +87,7 @@ void fb_init(void *addr, int width, int height, int stride_bytes) {
 }
 
 int fb_is_init(void) { return fb_init_done; }
+void fb_get_res(int *w, int *h) { if (w) *w = fb_w; if (h) *h = fb_h; }
 
 void fb_fill(uint32_t color) {
     if (!fb) return;
@@ -95,10 +98,54 @@ void fb_fill(uint32_t color) {
     virtio_gpu_flush();
 }
 
-static void fb_set_pixel(int x, int y, uint32_t color) {
+void fb_set_pixel(int x, int y, uint32_t color) {
     if (!fb) return;
     if (x < 0 || x >= fb_w || y < 0 || y >= fb_h) return;
     fb[y * fb_stride + x] = color;
+}
+
+void fb_draw_rect(int x, int y, int w, int h, uint32_t color) {
+    if (!fb) return;
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            fb_set_pixel(x + j, y + i, color);
+        }
+    }
+}
+
+void fb_draw_rect_outline(int x, int y, int w, int h, uint32_t color, int thickness) {
+    if (!fb || thickness <= 0) return;
+    /* top */
+    fb_draw_rect(x, y, w, thickness, color);
+    /* bottom */
+    fb_draw_rect(x, y + h - thickness, w, thickness, color);
+    /* left */
+    fb_draw_rect(x, y + thickness, thickness, h - 2 * thickness, color);
+    /* right */
+    fb_draw_rect(x + w - thickness, y + thickness, thickness, h - 2 * thickness, color);
+}
+
+void fb_draw_hline(int x1, int x2, int y, uint32_t color) {
+    if (x1 > x2) { int t = x1; x1 = x2; x2 = t; }
+    for (int x = x1; x <= x2; x++) fb_set_pixel(x, y, color);
+}
+
+void fb_draw_vline(int x, int y1, int y2, uint32_t color) {
+    if (y1 > y2) { int t = y1; y1 = y2; y2 = t; }
+    for (int y = y1; y <= y2; y++) fb_set_pixel(x, y, color);
+}
+
+void fb_draw_text(int x, int y, const char *s, uint32_t color, int scale) {
+    if (!fb || !s) return;
+    int cur_x = x;
+    int glyph_w = 5;
+    int spacing = 1;
+    while (*s) {
+        char c = *s++;
+        const uint8_t *g = get_glyph(c);
+        fb_draw_scaled_glyph(g, cur_x, y, scale, color);
+        cur_x += (glyph_w * scale) + (spacing * scale);
+    }
 }
 
 static void fb_draw_scaled_glyph(const uint8_t *g, int x, int y, int scale, uint32_t color) {

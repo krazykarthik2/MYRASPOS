@@ -9,6 +9,7 @@
 #include "irq.h"
 #include "framebuffer.h"
 #include "virtio.h"
+#include "service.h"
 
 /* Small static page pool for palloc (increase for more heap during testing) */
 static unsigned char palloc_pool[PAGE_SIZE * 256] __attribute__((aligned(PAGE_SIZE)));
@@ -21,6 +22,7 @@ void kernel_main(void) {
     palloc_init(palloc_pool, 256);
     kmalloc_init();
     ramfs_init();
+    services_init();
     /* early debug: make sure UART is operational */
     uart_puts("[kernel] booting...\n");
 
@@ -73,7 +75,7 @@ void kernel_main(void) {
     syscall_register_defaults();
 
     /* create init task which will run a shell */
-    task_create(init_main, NULL);
+    task_create(init_main, NULL, "init");
 
     /* run scheduler loop cooperatively */
     while (1) {

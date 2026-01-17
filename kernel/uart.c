@@ -14,9 +14,7 @@ static inline void mmio_write(uintptr_t reg, uint32_t val) {
 }
 
 void uart_putc(char c) {
-#ifndef qemu
-    while (mmio_read(UART_FR) & (1 << 5));
-#endif
+    while (mmio_read(UART_FR) & (1 << 5)); /* TXFF bit 5 */
     mmio_write(UART_DR, (unsigned int)c);
 }
 
@@ -29,22 +27,20 @@ void uart_puts(const char *s) {
 }
 
 char uart_getc(void) {
-#ifndef qemu
     /* FR bit 4 == RXFE (receive FIFO empty) */
-    while (mmio_read(UART_FR) & (1 << 4));
+    while (mmio_read(UART_FR) & (1 << 4)) {
+#ifndef NO_SCHED
+        extern void yield(void);
+        yield();
 #endif
+    }
     unsigned int v = mmio_read(UART_DR);
     return (char)(v & 0xFF);
 }
 
 int uart_haschar(void) {
-#ifndef qemu
     /* FR bit 4 == RXFE (receive FIFO empty) */
     return !(mmio_read(UART_FR) & (1 << 4));
-#else
-    /* in qemu, assume blocking read only */
-    return 0;
-#endif
 }
 
 void panic(const char *reason) {

@@ -42,9 +42,13 @@ call "aarch64/aarch64-none-elf-gcc.bat"  -fno-builtin -fno-merge-constants -fno-
 call "aarch64/aarch64-none-elf-gcc.bat"  -fno-builtin -fno-merge-constants -fno-common  -ffreestanding -nostdlib  -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra  -Wmissing-prototypes -c kernel/panic.c -o temp/objects/panic.o
 call "aarch64/aarch64-none-elf-gcc.bat"  -fno-builtin -fno-merge-constants -fno-common  -ffreestanding -nostdlib  -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra  -Wmissing-prototypes -c kernel/service.c -o temp/objects/service.o
 call "aarch64/aarch64-none-elf-gcc.bat"  -fno-builtin -fno-merge-constants -fno-common  -ffreestanding -nostdlib  -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra  -Wmissing-prototypes -c kernel/glob.c -o temp/objects/glob.o
+call "aarch64/aarch64-none-elf-gcc.bat"  -fno-builtin -fno-merge-constants -fno-common  -ffreestanding -nostdlib  -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra  -Wmissing-prototypes -c kernel/pty.c -o temp/objects/pty.o
+call "aarch64/aarch64-none-elf-gcc.bat"  -fno-builtin -fno-merge-constants -fno-common  -ffreestanding -nostdlib  -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra  -Wmissing-prototypes -c kernel/input.c -o temp/objects/input.o
+call "aarch64/aarch64-none-elf-gcc.bat"  -fno-builtin -fno-merge-constants -fno-common  -ffreestanding -nostdlib  -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra  -Wmissing-prototypes -c kernel/wm.c -o temp/objects/wm.o
+call "aarch64/aarch64-none-elf-gcc.bat"  -fno-builtin -fno-merge-constants -fno-common  -ffreestanding -nostdlib  -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra  -Wmissing-prototypes -c kernel/terminal_app.c -o temp/objects/terminal_app.o
 
 
-call "aarch64/aarch64-none-elf-ld.bat" temp/objects/start.o temp/objects/kernel.o temp/objects/uart.o temp/objects/palloc.o temp/objects/kmalloc.o temp/objects/ramfs.o temp/objects/lib.o temp/objects/syscall.o temp/objects/timer.o temp/objects/irq.o temp/objects/framebuffer.o temp/objects/virtio.o temp/objects/init.o temp/objects/programs.o temp/objects/echo.o temp/objects/help.o temp/objects/touch.o temp/objects/write.o temp/objects/cat.o temp/objects/ls.o temp/objects/rm.o temp/objects/mkdir.o temp/objects/rmdir.o temp/objects/cp.o temp/objects/mv.o temp/objects/grep.o temp/objects/head.o temp/objects/tail.o temp/objects/more.o temp/objects/tree.o temp/objects/shell.o temp/objects/sched.o temp/objects/panic.o temp/objects/service.o temp/objects/glob.o -T linkers/linker.ld -o temp/elfs/kernel.elf -Map temp/maps/kernel.map
+call "aarch64/aarch64-none-elf-ld.bat" temp/objects/start.o temp/objects/kernel.o temp/objects/uart.o temp/objects/palloc.o temp/objects/kmalloc.o temp/objects/ramfs.o temp/objects/lib.o temp/objects/syscall.o temp/objects/timer.o temp/objects/irq.o temp/objects/framebuffer.o temp/objects/virtio.o temp/objects/init.o temp/objects/programs.o temp/objects/echo.o temp/objects/help.o temp/objects/touch.o temp/objects/write.o temp/objects/cat.o temp/objects/ls.o temp/objects/rm.o temp/objects/mkdir.o temp/objects/rmdir.o temp/objects/cp.o temp/objects/mv.o temp/objects/grep.o temp/objects/head.o temp/objects/tail.o temp/objects/more.o temp/objects/tree.o temp/objects/shell.o temp/objects/sched.o temp/objects/panic.o temp/objects/service.o temp/objects/glob.o temp/objects/pty.o temp/objects/input.o temp/objects/wm.o temp/objects/terminal_app.o -T linkers/linker.ld -o temp/elfs/kernel.elf -Map temp/maps/kernel.map
 @REM call "arm-none/arm-none-eabi-ld.bat" temp/objects/start.o temp/objects/kernel.o temp/objects/uart.o -T linkers/linker_pi.ld -o temp/elfs/kernel.elf -Map temp/maps/kernel.map 
 @REM call "arm-none/arm-none-eabi-objcopy.bat" -O binary -S temp/elfs/kernel.elf temp/binaries/kernel.img
 call "aarch64/aarch64-none-elf-objcopy.bat" -O binary temp/elfs/kernel.elf temp/binaries/kernel8.img
@@ -56,6 +60,8 @@ call "qemu/qemu-system-aarch64.bat" ^
   -cpu cortex-a53 ^
   -display sdl ^
    -device virtio-gpu-device ^
+   -device virtio-mouse-device ^
+   -device virtio-keyboard-device ^
    -device ramfb ^
   -kernel temp/elfs/kernel.elf ^
   -serial mon:stdio

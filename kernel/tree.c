@@ -68,7 +68,10 @@ int prog_tree(int argc, char **argv, const char *in, size_t in_len, char *out, s
     if (!arg) {
         char *cwd = init_resolve_path(".");
         if (!cwd) return -1;
-        tree_walk(cwd, 0, out, out_cap, &off);
+        /* print root line */
+        size_t l = strlen(cwd);
+        if (off + l + 1 < out_cap) { memcpy(out + off, cwd, l); off += l; out[off++] = '\n'; }
+        tree_walk(cwd, 1, out, out_cap, &off);
         kfree(cwd);
         return (int)off;
     }

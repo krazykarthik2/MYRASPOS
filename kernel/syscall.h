@@ -11,6 +11,7 @@ uintptr_t syscall_handle(uint32_t num, uintptr_t a0, uintptr_t a1, uintptr_t a2)
 
 /* common syscall numbers */
 #define SYS_PUTS 1
+#define SYS_GETC 11
 #define SYS_RAMFS_CREATE 2
 #define SYS_RAMFS_WRITE 3
 /* extra ramfs helpers */

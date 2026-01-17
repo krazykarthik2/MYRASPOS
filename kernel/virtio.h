@@ -9,5 +9,7 @@ int virtio_gpu_init(void);
 void virtio_gpu_flush(void);
 int virtio_gpu_get_width(void);
 int virtio_gpu_get_height(void);
+int virtio_input_init(void);
+void virtio_input_poll(void);
 
 #endif

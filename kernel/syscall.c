@@ -4,8 +4,9 @@
 #include "service.h"
 #include "timer.h"
 #include "framebuffer.h"
-#include <stddef.h>
 #include <stdint.h>
+#include "pty.h"
+#include "sched.h"
 
 #define SYSCALL_MAX 64
 
@@ -30,9 +31,22 @@ uintptr_t syscall_handle(uint32_t num, uintptr_t a0, uintptr_t a1, uintptr_t a2)
 static uintptr_t sys_puts(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
     (void)a1; (void)a2;
     const char *s = (const char *)a0;
-    uart_puts(s);
-    if (fb_is_init()) fb_puts(s);
+    
+    struct pty *p = (struct pty *)task_get_tty(task_current_id());
+    if (p) {
+        while (*s) pty_write_out(p, *s++);
+    } else {
+        uart_puts(s);
+        if (fb_is_init()) fb_puts(s);
+    }
     return 0;
+}
+
+static uintptr_t sys_getc(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a0; (void)a1; (void)a2;
+    struct pty *p = (struct pty *)task_get_tty(task_current_id());
+    if (p) return (uintptr_t)pty_read_in(p);
+    return (uintptr_t)uart_getc();
 }
 
 static uintptr_t sys_ramfs_create(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
@@ -70,14 +84,17 @@ static uintptr_t sys_ramfs_list(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
     return (uintptr_t)ramfs_list(dir, buf, len);
 }
 static uintptr_t sys_ramfs_export(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *path = (const char *)a0;
     return (uintptr_t)ramfs_export(path);
 }
 static uintptr_t sys_ramfs_import(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *path = (const char *)a0;
     return (uintptr_t)ramfs_import(path);
 }
 static uintptr_t sys_ramfs_remove_recursive(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *path = (const char *)a0;
     return (uintptr_t)ramfs_remove_recursive(path);
 }
@@ -88,30 +105,37 @@ static uintptr_t sys_service_load_all(uintptr_t a0, uintptr_t a1, uintptr_t a2) 
     return (uintptr_t)services_load_all();
 }
 static uintptr_t sys_service_load_unit(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *path = (const char *)a0;
     return (uintptr_t)service_load_unit(path);
 }
 static uintptr_t sys_service_start(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *name = (const char *)a0;
     return (uintptr_t)service_start(name);
 }
 static uintptr_t sys_service_stop(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *name = (const char *)a0;
     return (uintptr_t)service_stop(name);
 }
 static uintptr_t sys_service_restart(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *name = (const char *)a0;
     return (uintptr_t)service_restart(name);
 }
 static uintptr_t sys_service_reload(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *name = (const char *)a0;
     return (uintptr_t)service_reload(name);
 }
 static uintptr_t sys_service_enable(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *name = (const char *)a0;
     return (uintptr_t)service_enable(name);
 }
 static uintptr_t sys_service_disable(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
     const char *name = (const char *)a0;
     return (uintptr_t)service_disable(name);
 }
@@ -135,6 +159,7 @@ static uintptr_t sys_sleep(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
 
 void syscall_register_defaults(void) {
     syscall_register(SYS_PUTS, sys_puts);
+    syscall_register(SYS_GETC, sys_getc);
     syscall_register(SYS_RAMFS_CREATE, sys_ramfs_create);
     syscall_register(SYS_RAMFS_WRITE, sys_ramfs_write);
     syscall_register(SYS_RAMFS_READ, sys_ramfs_read); // Register read syscall with number 4
