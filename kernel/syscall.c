@@ -1,6 +1,8 @@
 #include "syscall.h"
 #include "uart.h"
 #include "ramfs.h"
+#include "service.h"
+#include "timer.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -65,6 +67,68 @@ static uintptr_t sys_ramfs_list(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
     size_t len = (size_t)a2;
     return (uintptr_t)ramfs_list(dir, buf, len);
 }
+static uintptr_t sys_ramfs_export(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *path = (const char *)a0;
+    return (uintptr_t)ramfs_export(path);
+}
+static uintptr_t sys_ramfs_import(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *path = (const char *)a0;
+    return (uintptr_t)ramfs_import(path);
+}
+static uintptr_t sys_ramfs_remove_recursive(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *path = (const char *)a0;
+    return (uintptr_t)ramfs_remove_recursive(path);
+}
+
+/* service syscalls */
+static uintptr_t sys_service_load_all(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a0; (void)a1; (void)a2;
+    return (uintptr_t)services_load_all();
+}
+static uintptr_t sys_service_load_unit(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *path = (const char *)a0;
+    return (uintptr_t)service_load_unit(path);
+}
+static uintptr_t sys_service_start(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *name = (const char *)a0;
+    return (uintptr_t)service_start(name);
+}
+static uintptr_t sys_service_stop(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *name = (const char *)a0;
+    return (uintptr_t)service_stop(name);
+}
+static uintptr_t sys_service_restart(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *name = (const char *)a0;
+    return (uintptr_t)service_restart(name);
+}
+static uintptr_t sys_service_reload(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *name = (const char *)a0;
+    return (uintptr_t)service_reload(name);
+}
+static uintptr_t sys_service_enable(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *name = (const char *)a0;
+    return (uintptr_t)service_enable(name);
+}
+static uintptr_t sys_service_disable(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *name = (const char *)a0;
+    return (uintptr_t)service_disable(name);
+}
+static uintptr_t sys_service_status(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    const char *name = (const char *)a0;
+    char *buf = (char *)a1; size_t len = (size_t)a2;
+    return (uintptr_t)service_status(name, buf, len);
+}
+/* timing syscalls */
+static uintptr_t sys_time(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a0; (void)a1; (void)a2;
+    return (uintptr_t)timer_get_ms();
+}
+static uintptr_t sys_sleep(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a1; (void)a2;
+    uint32_t ms = (uint32_t)a0;
+    timer_sleep_ms(ms);
+    return 0;
+}
 // Optionally register default syscalls during init from outside
 
 void syscall_register_defaults(void) {
@@ -75,4 +139,20 @@ void syscall_register_defaults(void) {
     syscall_register(SYS_RAMFS_REMOVE, sys_ramfs_remove);
     syscall_register(SYS_RAMFS_MKDIR, sys_ramfs_mkdir);
     syscall_register(SYS_RAMFS_LIST, sys_ramfs_list);
+    syscall_register(SYS_RAMFS_EXPORT, sys_ramfs_export);
+    syscall_register(SYS_RAMFS_IMPORT, sys_ramfs_import);
+    syscall_register(SYS_RAMFS_REMOVE_RECURSIVE, sys_ramfs_remove_recursive);
+    /* service syscalls */
+    syscall_register(SYS_SERVICE_LOAD_ALL, sys_service_load_all);
+    syscall_register(SYS_SERVICE_LOAD_UNIT, sys_service_load_unit);
+    syscall_register(SYS_SERVICE_START, sys_service_start);
+    syscall_register(SYS_SERVICE_STOP, sys_service_stop);
+    syscall_register(SYS_SERVICE_RESTART, sys_service_restart);
+    syscall_register(SYS_SERVICE_RELOAD, sys_service_reload);
+    syscall_register(SYS_SERVICE_ENABLE, sys_service_enable);
+    syscall_register(SYS_SERVICE_DISABLE, sys_service_disable);
+    syscall_register(SYS_SERVICE_STATUS, sys_service_status);
+    /* timing */
+    syscall_register(SYS_TIME, sys_time);
+    syscall_register(SYS_SLEEP, sys_sleep);
 }

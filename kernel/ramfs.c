@@ -122,13 +122,16 @@ int ramfs_list(const char *dir, char *buf, size_t len) {
             memcpy(ent, rest, comp_len);
             ent[comp_len] = '\0';
         }
-        // avoid duplicates by checking existing buf
+        /* avoid duplicates by checking existing entries in buf (newline-separated) */
         int dup = 0;
         size_t p = 0;
         while (p < off) {
-            size_t l = strlen(&buf[p]);
-            if (strcmp(&buf[p], ent) == 0) { dup = 1; break; }
-            p += l + 1;
+            /* find length up to next newline */
+            size_t l2 = 0;
+            while (p + l2 < off && buf[p + l2] != '\n') ++l2;
+            if (l2 == 0) break;
+            if (l2 == strlen(ent) && memcmp(&buf[p], ent, l2) == 0) { dup = 1; break; }
+            p += l2 + 1;
         }
         if (dup) continue;
         size_t entl = strlen(ent);
@@ -194,4 +197,98 @@ int ramfs_remove(const char *name) {
         }
     }
     return -1;
+}
+
+int ramfs_remove_recursive(const char *name) {
+    if (!name) return -1;
+    char prefix[RAMFS_NAME_MAX];
+    size_t nlen = strlen(name);
+    if (nlen + 1 >= RAMFS_NAME_MAX) return -1;
+    strcpy(prefix, name);
+    /* ensure prefix ends with '/' for directory matching */
+    if (prefix[nlen-1] != '/') { prefix[nlen] = '/'; prefix[nlen+1] = '\0'; }
+    int removed = 0;
+    struct ram_node **prev = &root;
+    struct ram_node *cur = root;
+    while (cur) {
+        struct ram_node *next = cur->next;
+        /* if node name equals name exactly, or has prefix match, remove it */
+        if (strncmp(cur->name, name, RAMFS_NAME_MAX) == 0 || strncmp(cur->name, prefix, strlen(prefix)) == 0) {
+            *prev = next;
+            if (cur->data) kfree(cur->data);
+            kfree(cur);
+            removed = 1;
+            cur = next;
+            continue;
+        }
+        prev = &cur->next;
+        cur = next;
+    }
+    return removed ? 0 : -1;
+}
+
+/* serialize entire ramfs into single file at path (path resides in ramfs) */
+int ramfs_export(const char *path) {
+    /* compute needed size */
+    size_t total = 0;
+    for (struct ram_node *n = root; n; n = n->next) {
+        size_t namelen = strlen(n->name);
+        total += 4 + namelen + 4 + n->size;
+    }
+    total += 4; /* terminating zero name_len */
+    uint8_t *buf = kmalloc(total);
+    if (!buf) return -1;
+    size_t off = 0;
+    for (struct ram_node *n = root; n; n = n->next) {
+        uint32_t namelen = (uint32_t)strlen(n->name);
+        /* write namelen little-endian */
+        buf[off++] = (uint8_t)(namelen & 0xff);
+        buf[off++] = (uint8_t)((namelen >> 8) & 0xff);
+        buf[off++] = (uint8_t)((namelen >> 16) & 0xff);
+        buf[off++] = (uint8_t)((namelen >> 24) & 0xff);
+        memcpy(&buf[off], n->name, namelen); off += namelen;
+        uint32_t dlen = (uint32_t)n->size;
+        buf[off++] = (uint8_t)(dlen & 0xff);
+        buf[off++] = (uint8_t)((dlen >> 8) & 0xff);
+        buf[off++] = (uint8_t)((dlen >> 16) & 0xff);
+        buf[off++] = (uint8_t)((dlen >> 24) & 0xff);
+        if (dlen && n->data) { memcpy(&buf[off], n->data, dlen); off += dlen; }
+    }
+    /* terminating zero */
+    buf[off++] = 0; buf[off++] = 0; buf[off++] = 0; buf[off++] = 0;
+
+    /* write into ramfs file */
+    ramfs_remove(path);
+    if (ramfs_create(path) < 0) { kfree(buf); return -1; }
+    int w = ramfs_write(path, buf, off, 0);
+    kfree(buf);
+    return (w >= 0) ? 0 : -1;
+}
+
+int ramfs_import(const char *path) {
+    /* read file */
+    size_t max = 32768;
+    uint8_t *buf = kmalloc(max);
+    if (!buf) return -1;
+    int r = ramfs_read(path, buf, max, 0);
+    if (r <= 0) { kfree(buf); return -1; }
+    size_t off = 0;
+    while (off + 4 <= (size_t)r) {
+        uint32_t namelen = (uint32_t)buf[off] | ((uint32_t)buf[off+1] << 8) | ((uint32_t)buf[off+2] << 16) | ((uint32_t)buf[off+3] << 24);
+        off += 4;
+        if (namelen == 0) break;
+        if (off + namelen + 4 > (size_t)r) break;
+        char name[RAMFS_NAME_MAX]; size_t copy_len = (namelen < RAMFS_NAME_MAX-1) ? namelen : (RAMFS_NAME_MAX-1);
+        memcpy(name, &buf[off], copy_len); name[copy_len] = '\0'; off += namelen;
+        uint32_t dlen = (uint32_t)buf[off] | ((uint32_t)buf[off+1] << 8) | ((uint32_t)buf[off+2] << 16) | ((uint32_t)buf[off+3] << 24);
+        off += 4;
+        if (off + dlen > (size_t)r) break;
+        /* recreate node */
+        ramfs_remove(name);
+        ramfs_create(name);
+        if (dlen) ramfs_write(name, &buf[off], dlen, 0);
+        off += dlen;
+    }
+    kfree(buf);
+    return 0;
 }

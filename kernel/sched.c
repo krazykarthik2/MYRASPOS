@@ -2,6 +2,9 @@
 #include "kmalloc.h"
 #include "uart.h"
 #include <stdint.h>
+#include "lib.h"
+#include "timer.h"
+#include "irq.h"
 
 struct task {
     int id;
@@ -9,6 +12,8 @@ struct task {
     void *arg;
     int run_count;
     int start_tick;
+    uint32_t wake_tick;      /* when to wake (monotonic ms) */
+    task_fn saved_fn;        /* saved function when blocked */
     char name[16];
     struct task *next;
 };
@@ -48,15 +53,24 @@ int task_create(task_fn fn, void *arg) {
 }
 
 void schedule(void) {
+    /* update timer and dispatch polled IRQs */
+    timer_poll_and_advance();
+    irq_poll_and_dispatch();
     if (!task_head) return;
     if (!task_cur) task_cur = task_head;
     else task_cur = task_cur->next;
-    // run task function cooperatively
+    /* skip blocked tasks (fn == NULL) */
+    int attempts = 0;
+    while (task_cur && task_cur->fn == NULL && attempts < 1000) {
+        task_cur = task_cur->next;
+        attempts++;
+        if (task_cur == NULL) return;
+    }
+    /* run task function cooperatively */
     if (task_cur && task_cur->fn) {
         /* account run for this task */
         task_cur->run_count++;
         total_run_counts++;
-        scheduler_tick++;
         task_cur->fn(task_cur->arg);
     }
 }
@@ -121,6 +135,33 @@ int task_set_fn_null(int id) {
         t = t->next;
     } while (t && t != task_head);
     return -1;
+}
+
+void task_block_current_until(uint32_t wake_tick) {
+    if (!task_cur) return;
+    /* save current function pointer and mark blocked */
+    task_cur->saved_fn = task_cur->fn;
+    task_cur->fn = NULL;
+    task_cur->wake_tick = wake_tick;
+}
+
+void scheduler_tick_advance(uint32_t delta_ms) {
+    if (delta_ms == 0) return;
+    scheduler_tick += (int)delta_ms;
+    /* wake any tasks whose wake_tick <= scheduler_tick */
+    if (!task_head) return;
+    struct task *t = task_head;
+    do {
+        if (t->fn == NULL && t->saved_fn != NULL && (int)t->wake_tick <= scheduler_tick) {
+            t->fn = t->saved_fn;
+            t->saved_fn = NULL;
+        }
+        t = t->next;
+    } while (t && t != task_head);
+}
+
+uint32_t scheduler_get_tick(void) {
+    return (uint32_t)scheduler_tick;
 }
 
 int task_stats(int *ids_out, int *run_counts_out, int *start_ticks_out, int max, int *total_runs_out) {

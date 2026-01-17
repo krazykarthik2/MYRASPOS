@@ -4,6 +4,7 @@
 #include "lib.h"
 #include "sched.h"
 #include "programs.h"
+#include "glob.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -28,6 +29,17 @@ static int cmd_ps(int argc, char **argv, const char *in, size_t in_len, char *ou
 static int cmd_sleep(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
 static int cmd_wait(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
 static int cmd_kill(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
+static int cmd_ramfs_export(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
+static int cmd_ramfs_import(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
+static int cmd_systemctl(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
+static int cmd_cd(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
+static int cmd_pwd(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
+
+/* forward helpers */
+static char *abs_path_alloc(const char *p);
+static char *resolve_path_alloc(const char *p);
+static char *normalize_abs_path_alloc(const char *path);
+static int derive_service_shortname(const char *arg, char *out, size_t out_len, char *fullpath, size_t full_len);
 
 struct cmd_entry { const char *name; cmd_fn_t fn; };
 
@@ -35,15 +47,107 @@ static struct cmd_entry commands[] = {
     {"help", cmd_help},
     {"clear", cmd_clear},
     {"echo", cmd_echo},
+    {"cd", cmd_cd},
+    {"pwd", cmd_pwd},
     {"touch", cmd_touch},
     {"write", cmd_write},
     {"cat", cmd_cat},
     {"sleep", cmd_sleep},
     {"wait", cmd_wait},
     {"kill", cmd_kill},
+    {"ramfs-export", cmd_ramfs_export},
+    {"ramfs-import", cmd_ramfs_import},
+    {"systemctl", cmd_systemctl},
     {"ps", cmd_ps},
-    {NULL, NULL}
+    {NULL, NULL},
 };
+
+/* current working directory for the shell (no concurrency expected) */
+static char shell_cwd[256] = "/";
+
+/* Exported helper for other kernel programs to resolve paths relative to the
+   shell's current working directory. Returns kmalloc'd string; caller frees. */
+char *init_resolve_path(const char *p) {
+    return resolve_path_alloc(p);
+}
+
+/* Resolve a possibly-relative path to an allocated absolute path (caller must kfree)
+   does NOT normalize '..' */
+static char *resolve_path_alloc(const char *p) {
+    if (!p) return NULL;
+    if (p[0] == '/') {
+        return normalize_abs_path_alloc(p);
+    }
+    /* relative -> join with shell_cwd and normalize */
+    size_t clen = strlen(shell_cwd);
+    size_t plen = strlen(p);
+    /* build joined path string */
+    if (strcmp(shell_cwd, "/") == 0) {
+        /* avoid double slash: "/" + p -> "/p" */
+        size_t need = 1 + plen + 1;
+        char *tmp = kmalloc(need);
+        if (!tmp) return NULL;
+        tmp[0] = '/'; memcpy(tmp+1, p, plen+1);
+        char *norm = normalize_abs_path_alloc(tmp);
+        kfree(tmp);
+        return norm;
+    }
+    size_t need = clen + 1 + plen + 1;
+    char *tmp = kmalloc(need);
+    if (!tmp) return NULL;
+    memcpy(tmp, shell_cwd, clen);
+    tmp[clen] = '/';
+    memcpy(tmp + clen + 1, p, plen + 1);
+    char *norm = normalize_abs_path_alloc(tmp);
+    kfree(tmp);
+    return norm;
+}
+
+/* Normalize an absolute path, resolving '.' and '..' components and collapsing
+   repeated slashes. Returns a kmalloc'd normalized absolute path (starts with '/'). */
+static char *normalize_abs_path_alloc(const char *path) {
+    if (!path) return NULL;
+    size_t len = strlen(path);
+    char *out = kmalloc(len + 2);
+    if (!out) return NULL;
+    /* ensure path starts with '/' */
+    size_t i = 0; size_t op = 0;
+    if (len == 0) { out[0] = '/'; out[1] = '\0'; return out; }
+    if (path[0] != '/') {
+        /* make it absolute by prefixing slash */
+        out[op++] = '/';
+    }
+    /* parse segments */
+    size_t p = (path[0] == '/') ? 1 : 0;
+    while (p <= len) {
+        /* extract segment up to next slash */
+        size_t j = p;
+        while (j < len && path[j] != '/') ++j;
+        size_t seglen = j - p;
+        if (seglen == 0) {
+            /* skip empty segment (consecutive slashes) */
+        } else if (seglen == 1 && path[p] == '.') {
+            /* skip '.' */
+        } else if (seglen == 2 && path[p] == '.' && path[p+1] == '.') {
+            /* go up one level if possible (remove last segment from out) */
+            if (op > 1) {
+                /* remove trailing slash if present */
+                if (out[op-1] == '/') op--;
+                /* remove last segment */
+                while (op > 0 && out[op-1] != '/') op--;
+            }
+        } else {
+            /* append segment */
+            if (op == 0 || out[op-1] != '/') { out[op++] = '/'; }
+            memcpy(out + op, path + p, seglen);
+            op += seglen;
+        }
+        p = j + 1;
+    }
+    if (op == 0) { out[op++] = '/'; }
+    out[op] = '\0';
+    return out;
+}
 
 /* global interrupt flag set when user types Ctrl+C */
 volatile int shell_sigint = 0;
@@ -288,8 +392,18 @@ static struct pipeline_job *parse_pipeline(const char *line_in) {
                 job->append = (strcmp(tk, ">>") == 0);
                 ++idx;
                 if (idx < tcount) {
-                    job->out_file = kmalloc(strlen(job->tokens[idx]) + 1);
-                    memcpy(job->out_file, job->tokens[idx], strlen(job->tokens[idx])+1);
+                    /* resolve redirection target relative to cwd */
+                    char *raw = job->tokens[idx];
+                    char *resolved = init_resolve_path(raw);
+                    if (resolved) {
+                        job->out_file = resolved;
+                        /* free original token memory; pipeline_runner will skip double-free */
+                        kfree(raw);
+                        job->tokens[idx] = NULL;
+                    } else {
+                        job->out_file = kmalloc(strlen(raw) + 1);
+                        if (job->out_file) memcpy(job->out_file, raw, strlen(raw) + 1);
+                    }
                     ++idx;
                 }
                 /* redirection ends command parsing */
@@ -361,14 +475,19 @@ static int cmd_echo(int argc, char **argv, const char *in, size_t in_len, char *
 static int cmd_touch(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
     (void)in; (void)in_len;
     if (argc < 2) { const char *u = "usage: touch <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
-    int r = init_ramfs_create(argv[1]);
+    char *ap = init_resolve_path(argv[1]);
+    if (!ap) { const char *m = "fail\n"; size_t mm = strlen(m); if (mm>out_cap) mm=out_cap; memcpy(out,m,mm); return (int)mm; }
+    int r = init_ramfs_create(ap);
+    kfree(ap);
     const char *msg = (r==0)?"ok\n":"fail\n"; size_t m = strlen(msg); if (m>out_cap) m=out_cap; memcpy(out,msg,m); return (int)m;
 }
 
 static int cmd_write(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
     (void)in; (void)in_len;
     if (argc < 3) { const char *u = "usage: write <name> <text>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
-    const char *name = argv[1];
+    char *an = init_resolve_path(argv[1]);
+    if (!an) { const char *m = "fail\n"; size_t mm = strlen(m); if (mm>out_cap) mm=out_cap; memcpy(out,m,mm); return (int)mm; }
+    const char *name = an;
     /* join remaining args into text */
     size_t total = 0;
     for (int i = 2; i < argc; ++i) total += strlen(argv[i]) + 1;
@@ -380,7 +499,198 @@ static int cmd_write(int argc, char **argv, const char *in, size_t in_len, char 
     init_ramfs_create(name);
     int w = init_ramfs_write(name, text, off, 0);
     kfree(text);
+    kfree(an);
     const char *msg = (w>=0)?"wrote\n":"fail\n"; size_t m = strlen(msg); if (m>out_cap) m=out_cap; memcpy(out,msg,m); return (int)m;
+}
+
+static int cmd_cd(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
+    (void)in; (void)in_len;
+    if (argc < 2) {
+        /* cd with no args -> root */
+        strcpy(shell_cwd, "/");
+        const char *s = "ok\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+    }
+    const char *arg = argv[1];
+    /* if arg is '.' -> stay */
+    if (strcmp(arg, ".") == 0) { const char *s = "ok\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m; }
+    /* if arg is '..' -> parent */
+    if (strcmp(arg, "..") == 0) {
+        if (strcmp(shell_cwd, "/") == 0) { const char *s = "ok\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m; }
+        /* remove last path component */
+        char tmp[256]; strncpy(tmp, shell_cwd, sizeof(tmp)-1); tmp[sizeof(tmp)-1] = '\0';
+        size_t l = strlen(tmp);
+        if (l > 1 && tmp[l-1] == '/') tmp[l-1] = '\0';
+        while (l > 0 && tmp[l-1] != '/') { tmp[--l] = '\0'; }
+        if (l == 0) strcpy(shell_cwd, "/"); else strncpy(shell_cwd, tmp, sizeof(shell_cwd)-1);
+        const char *s = "ok\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+    }
+
+    /* handle glob patterns in cd: if pattern matches exactly one directory, cd into it */
+    int has_glob = 0;
+    for (const char *pp = arg; *pp; ++pp) { if (*pp=='*' || *pp=='?' || *pp=='[') { has_glob = 1; break; } }
+    if (has_glob) {
+        /* split directory and pattern */
+        const char *last = arg + strlen(arg);
+        while (last > arg && *(last-1) != '/') --last;
+        char dir[128]; char pat[128];
+        if (last == arg) { strcpy(dir, "."); strncpy(pat, arg, sizeof(pat)-1); pat[sizeof(pat)-1] = '\0'; }
+        else {
+            size_t dlen = (size_t)(last - arg);
+            if (dlen >= sizeof(dir)) dlen = sizeof(dir)-1;
+            memcpy(dir, arg, dlen); dir[dlen] = '\0';
+            strncpy(pat, last, sizeof(pat)-1); pat[sizeof(pat)-1] = '\0';
+        }
+        char *rdir = init_resolve_path(dir);
+        if (!rdir) { const char *f = "fail\n"; size_t m = strlen(f); if (m>out_cap) m=out_cap; memcpy(out,f,m); return (int)m; }
+        char listbuf[1024]; int rc = init_ramfs_list(rdir, listbuf, sizeof(listbuf));
+        if (rc < 0) { kfree(rdir); const char *f = "fail\n"; size_t m = strlen(f); if (m>out_cap) m=out_cap; memcpy(out,f,m); return (int)m; }
+        int matches = 0; char matched[128];
+        size_t p = 0;
+        while (p < (size_t)rc) {
+            size_t l = 0; while (p + l < (size_t)rc && listbuf[p + l] != '\n') ++l;
+            if (l == 0) break;
+            const char *name = &listbuf[p];
+            if (glob_match(pat, name)) {
+                /* ensure it's a directory (ends with '/') */
+                if (l > 0 && name[l-1] == '/') {
+                    if (matches == 0) { size_t ml = (l < sizeof(matched)-1) ? l : (sizeof(matched)-1); memcpy(matched, name, ml); matched[ml] = '\0'; }
+                    matches++;
+                }
+            }
+            p += l + 1;
+        }
+        if (matches == 1) {
+            /* build full path: rdir + matched */
+            size_t rlen = strlen(rdir); size_t mlen = strlen(matched);
+            char *full = kmalloc(rlen + 1 + mlen + 1);
+            if (!full) { kfree(rdir); const char *f = "fail\n"; size_t m = strlen(f); if (m>out_cap) m=out_cap; memcpy(out,f,m); return (int)m; }
+            if (strcmp(rdir, "/") == 0) { full[0] = '\0'; }
+            else { memcpy(full, rdir, rlen); full[rlen] = '\0'; }
+            if (strcmp(rdir, "/") != 0) {
+                size_t cur = strlen(full);
+                full[cur++] = '/';
+                memcpy(full + cur, matched, mlen);
+                full[cur + mlen] = '\0';
+            } else {
+                /* rdir == "/"; matched already relative */
+                memcpy(full + 1, matched, mlen + 1);
+                full[0] = '/';
+            }
+            /* normalize and set cwd */
+            char *norm = resolve_path_alloc(full);
+            if (norm) {
+                if (strcmp(norm, "/") == 0) strcpy(shell_cwd, "/"); else {
+                    size_t l = strlen(norm); if (l > 1 && norm[l-1] == '/') norm[l-1] = '\0'; strncpy(shell_cwd, norm, sizeof(shell_cwd)-1); shell_cwd[sizeof(shell_cwd)-1] = '\0'; }
+                kfree(norm);
+            }
+            kfree(full);
+            kfree(rdir);
+            const char *s = "ok\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+        } else if (matches > 1) {
+            kfree(rdir);
+            const char *f = "cd: too many matches\n"; size_t m = strlen(f); if (m>out_cap) m=out_cap; memcpy(out,f,m); return (int)m;
+        } else {
+            kfree(rdir);
+            const char *f = "cd: no such directory\n"; size_t m = strlen(f); if (m>out_cap) m=out_cap; memcpy(out,f,m); return (int)m;
+        }
+    }
+
+    char *abs = resolve_path_alloc(argv[1]);
+    if (!abs) { const char *f = "fail\n"; size_t m = strlen(f); if (m>out_cap) m=out_cap; memcpy(out,f,m); return (int)m; }
+    /* verify directory exists */
+    char buf[128]; int r = init_ramfs_list(abs, buf, sizeof(buf));
+    if (r < 0) { kfree(abs); const char *f = "fail\n"; size_t m = strlen(f); if (m>out_cap) m=out_cap; memcpy(out,f,m); return (int)m; }
+    /* normalize: keep '/' as root, else strip trailing slash */
+    if (strcmp(abs, "/") == 0) {
+        strcpy(shell_cwd, "/");
+    } else {
+        size_t l = strlen(abs);
+        /* remove trailing slash if present */
+        if (l > 1 && abs[l-1] == '/') abs[l-1] = '\0';
+        if (strlen(abs) < sizeof(shell_cwd)) strcpy(shell_cwd, abs);
+        else shell_cwd[0] = '\0';
+    }
+    kfree(abs);
+    const char *s = "ok\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+}
+
+static int cmd_pwd(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
+    (void)argc; (void)argv; (void)in; (void)in_len;
+    size_t l = strlen(shell_cwd);
+    if (l + 1 >= out_cap) l = out_cap - 1;
+    memcpy(out, shell_cwd, l);
+    out[l++] = '\n';
+    if (l < out_cap) out[l] = '\0';
+    return (int)l;
+}
+
+static int cmd_ramfs_export(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
+    (void)in; (void)in_len;
+    if (argc < 2) { const char *u = "usage: ramfs-export <path>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
+    char *ap = abs_path_alloc(argv[1]);
+    if (!ap) { const char *s = "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m; }
+    int r = init_ramfs_export(ap);
+    kfree(ap);
+    const char *s = (r==0) ? "exported\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+}
+
+static int cmd_ramfs_import(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
+    (void)in; (void)in_len;
+    if (argc < 2) { const char *u = "usage: ramfs-import <path>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
+    char *ap = abs_path_alloc(argv[1]);
+    if (!ap) { const char *s = "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m; }
+    int r = init_ramfs_import(ap);
+    kfree(ap);
+    const char *s = (r==0) ? "imported\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+}
+
+/* Helper: return an allocated absolute path (prefix '/' if missing). Caller must kfree. */
+static char *abs_path_alloc(const char *p) {
+    if (!p) return NULL;
+    return normalize_abs_path_alloc(p);
+}
+
+/* Helper: given a unit argument, derive short service name (without .service)
+   Caller-provided output buffers must be large enough. Returns 0 on success.
+*/
+static int derive_service_shortname(const char *arg, char *out, size_t out_len, char *fullpath, size_t full_len) {
+    if (!arg || !out) return -1;
+    /* if arg contains '/', treat as path */
+    const char *slash = strchr(arg, '/');
+    if (slash) {
+        /* make absolute fullpath */
+        char *abs = abs_path_alloc(arg);
+        if (!abs) return -1;
+        if (fullpath && full_len > 0) {
+            size_t l = strlen(abs); if (l >= full_len) l = full_len - 1; memcpy(fullpath, abs, l); fullpath[l] = '\0';
+        }
+        /* extract filename */
+        const char *last = abs + strlen(abs);
+        while (last > abs && *(last-1) != '/') --last;
+        size_t i = 0;
+        while (*last && *last != '.' && i + 1 < out_len) out[i++] = *last++;
+        out[i] = '\0';
+        kfree(abs);
+        return 0;
+    }
+    /* no slash: may be name or name.service */
+    size_t i = 0;
+    const char *p = arg;
+    while (*p && *p != '.' && i + 1 < out_len) out[i++] = *p++;
+    out[i] = '\0';
+    if (fullpath && full_len > 0) {
+        /* build /etc/systemd/system/<out>.service */
+        const char *pref = "/etc/systemd/system/";
+        size_t plen = strlen(pref); size_t nlen = strlen(out); size_t slen = strlen(".service");
+        if (plen + nlen + slen + 1 < full_len) {
+            memcpy(fullpath, pref, plen);
+            memcpy(fullpath + plen, out, nlen);
+            memcpy(fullpath + plen + nlen, ".service", slen+1);
+        } else {
+            fullpath[0] = '\0';
+        }
+    }
+    return 0;
 }
 
 static int cmd_cat(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
@@ -457,6 +767,70 @@ static int cmd_kill(int argc, char **argv, const char *in, size_t in_len, char *
     } else {
         const char *s = "no such pid\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
     }
+}
+
+/* Builtin: systemctl <cmd> [name]
+   supported: status, start, stop, restart, reload, enable, disable
+ */
+static int cmd_systemctl(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
+    (void)in; (void)in_len;
+    if (argc < 2) {
+        const char *u = "usage: systemctl <status|start|stop|restart|reload|enable|disable> [name]\n";
+        size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m;
+    }
+    const char *cmd = argv[1];
+    const char *name = (argc >= 3) ? argv[2] : NULL;
+    if (strcmp(cmd, "status") == 0) {
+        if (!name) { const char *u = "usage: systemctl status <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
+        char shortname[64]; char full[256];
+        derive_service_shortname(name, shortname, sizeof(shortname), full, sizeof(full));
+        int r = init_service_status(shortname, out, out_cap);
+        return r;
+    } else if (strcmp(cmd, "start") == 0) {
+        if (!name) { const char *u = "usage: systemctl start <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
+        char shortname[64]; char full[256];
+        derive_service_shortname(name, shortname, sizeof(shortname), full, sizeof(full));
+        int r = init_service_start(shortname);
+        if (r < 0) {
+            /* maybe unit not loaded yet: try loading from full path (if available) and retry */
+            if (full[0]) init_service_load_unit(full);
+            r = init_service_start(shortname);
+        }
+        if (r > 0) {
+            char b[64]; int bl = 0;
+            int tmp = r; char tbuf[16]; int tl = 0; if (tmp==0) { tbuf[tl++]='0'; } else { int digs[12]; int di=0; while (tmp>0 && di<12) { digs[di++]=tmp%10; tmp/=10; } for (int j=di-1;j>=0;--j) tbuf[tl++]= '0' + digs[j]; }
+            for (int i=0;i<tl;++i) b[bl++]=tbuf[i]; b[bl++]='\n'; if (bl>out_cap) bl=out_cap; memcpy(out,b,bl); return bl;
+        } else {
+            const char *s = "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+        }
+    } else if (strcmp(cmd, "stop") == 0) {
+        if (!name) { const char *u = "usage: systemctl stop <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
+        int r = init_service_stop(name);
+        const char *s = (r==0) ? "stopped\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+    } else if (strcmp(cmd, "restart") == 0) {
+        if (!name) { const char *u = "usage: systemctl restart <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
+        char shortname[64]; char full[256]; derive_service_shortname(name, shortname, sizeof(shortname), full, sizeof(full));
+        int r = init_service_restart(shortname);
+        const char *s = (r==0) ? "ok\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+    } else if (strcmp(cmd, "reload") == 0) {
+        int r;
+        if (name) {
+            char shortname[64]; char full[256]; derive_service_shortname(name, shortname, sizeof(shortname), full, sizeof(full));
+            r = init_service_reload(shortname);
+        } else r = init_service_reload(NULL);
+        const char *s = (r==0) ? "reloaded\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+    } else if (strcmp(cmd, "enable") == 0) {
+        if (!name) { const char *u = "usage: systemctl enable <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
+        char shortname[64]; char full[256]; derive_service_shortname(name, shortname, sizeof(shortname), full, sizeof(full));
+        int r = init_service_enable(shortname);
+        const char *s = (r==0) ? "enabled\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+    } else if (strcmp(cmd, "disable") == 0) {
+        if (!name) { const char *u = "usage: systemctl disable <name>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
+        char shortname[64]; char full[256]; derive_service_shortname(name, shortname, sizeof(shortname), full, sizeof(full));
+        int r = init_service_disable(shortname);
+        const char *s = (r==0) ? "disabled\n" : "failed\n"; size_t m = strlen(s); if (m>out_cap) m=out_cap; memcpy(out,s,m); return (int)m;
+    }
+    const char *u = "unknown subcommand\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m;
 }
 
 /* Builtin: ps - list task ids */
@@ -550,7 +924,20 @@ void shell_main(void *arg) {
     shell_puts("myras shell v0.2\nType 'help' for commands.\n");
     char line[256];
     for (;;) {
-        shell_puts("myras> ");
+        /* print prompt showing current cwd: myras::/path$ */
+        char pbuf[320]; size_t pl = 0;
+        const char *prefix = "myras::";
+        size_t prelen = strlen(prefix);
+        if (prelen + strlen(shell_cwd) + 3 < sizeof(pbuf)) {
+            memcpy(pbuf, prefix, prelen); pl += prelen;
+            size_t cwdlen = strlen(shell_cwd);
+            memcpy(pbuf + pl, shell_cwd, cwdlen); pl += cwdlen;
+            pbuf[pl++] = '$'; pbuf[pl++] = ' ';
+            pbuf[pl] = '\0';
+            shell_puts(pbuf);
+        } else {
+            shell_puts("myras> ");
+        }
         int len = shell_read_line(line, sizeof(line));
         if (len <= 0) { yield(); continue; }
         struct pipeline_job *job = parse_pipeline(line);

@@ -13,6 +13,15 @@ void *memcpy(void *dest, const void *src, size_t n) {
     return dest;
 }
 
+int memcmp(const void *a, const void *b, size_t n) {
+    const unsigned char *pa = (const unsigned char *)a;
+    const unsigned char *pb = (const unsigned char *)b;
+    for (size_t i = 0; i < n; ++i) {
+        if (pa[i] != pb[i]) return (int)pa[i] - (int)pb[i];
+    }
+    return 0;
+}
+
 char *strncpy(char *dest, const char *src, size_t n) {
     char *d = dest;
     size_t i = 0;

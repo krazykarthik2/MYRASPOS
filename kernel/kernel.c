@@ -5,20 +5,25 @@
 #include "sched.h"
 #include "syscall.h"
 #include "ramfs.h"
+#include "timer.h"
+#include "irq.h"
 
-/* Small static page pool for palloc */
-static unsigned char palloc_pool[PAGE_SIZE * 16];
+/* Small static page pool for palloc (increase for more heap during testing) */
+static unsigned char palloc_pool[PAGE_SIZE * 256];
 
 /* forward declaration of init task in init.c */
 extern void init_main(void *arg);
 
 void kernel_main(void) {
     /* basic subsystem init */
-    palloc_init(palloc_pool, 16);
+    palloc_init(palloc_pool, 256);
     kmalloc_init();
     ramfs_init();
 
     /* scheduler */
+    /* timers must be initialized before scheduling/preemption features */
+    timer_init();
+    irq_init();
     scheduler_init();
 
     /* syscalls */

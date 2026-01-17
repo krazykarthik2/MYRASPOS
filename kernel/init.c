@@ -31,6 +31,54 @@ int init_ramfs_list(const char *dir, char *buf, size_t len) {
     return (int)syscall_handle(SYS_RAMFS_LIST, (uintptr_t)dir, (uintptr_t)buf, (uintptr_t)len);
 }
 
+int init_ramfs_export(const char *path) {
+    return (int)syscall_handle(SYS_RAMFS_EXPORT, (uintptr_t)path, 0, 0);
+}
+
+int init_ramfs_import(const char *path) {
+    return (int)syscall_handle(SYS_RAMFS_IMPORT, (uintptr_t)path, 0, 0);
+}
+
+int init_ramfs_remove_recursive(const char *path) {
+    return (int)syscall_handle(SYS_RAMFS_REMOVE_RECURSIVE, (uintptr_t)path, 0, 0);
+}
+
+int init_service_load_all(void) {
+    return (int)syscall_handle(SYS_SERVICE_LOAD_ALL, 0, 0, 0);
+}
+
+int init_service_load_unit(const char *path) {
+    return (int)syscall_handle(SYS_SERVICE_LOAD_UNIT, (uintptr_t)path, 0, 0);
+}
+
+int init_service_start(const char *name) {
+    return (int)syscall_handle(SYS_SERVICE_START, (uintptr_t)name, 0, 0);
+}
+
+int init_service_stop(const char *name) {
+    return (int)syscall_handle(SYS_SERVICE_STOP, (uintptr_t)name, 0, 0);
+}
+
+int init_service_restart(const char *name) {
+    return (int)syscall_handle(SYS_SERVICE_RESTART, (uintptr_t)name, 0, 0);
+}
+
+int init_service_reload(const char *name) {
+    return (int)syscall_handle(SYS_SERVICE_RELOAD, (uintptr_t)name, 0, 0);
+}
+
+int init_service_enable(const char *name) {
+    return (int)syscall_handle(SYS_SERVICE_ENABLE, (uintptr_t)name, 0, 0);
+}
+
+int init_service_disable(const char *name) {
+    return (int)syscall_handle(SYS_SERVICE_DISABLE, (uintptr_t)name, 0, 0);
+}
+
+int init_service_status(const char *name, char *buf, size_t len) {
+    return (int)syscall_handle(SYS_SERVICE_STATUS, (uintptr_t)name, (uintptr_t)buf, (uintptr_t)len);
+}
+
 int init_ramfs_write(const char *name, const void *buf, size_t len, int append) {
     if (!append) {
         return (int)syscall_handle(SYS_RAMFS_WRITE, (uintptr_t)name, (uintptr_t)buf, (uintptr_t)len);
