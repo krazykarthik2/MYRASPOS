@@ -28,6 +28,16 @@ _start:
      * 2. Disable interrupts
      * ---------------------------------------------------- */
     msr daifset, #0xf
+    
+    /* ----------------------------------------------------
+     * 2.1 Set up Exception Vectors
+     * ---------------------------------------------------- */
+    ldr x0, =vectors
+    msr vbar_el1, x0
+
+    /* 2.2 Unmask Exceptions (DAIF) to catch errors/IRQs */
+    /* MASKED: We are polling IO, and unhandled IRQs cause hang */
+    /* msr daifclr, #0xf */
 
     /* ----------------------------------------------------
      * 3. Set up stack

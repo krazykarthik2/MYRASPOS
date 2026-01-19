@@ -34,3 +34,12 @@ void panic_with_trace(const char *msg) {
     uart_puts("System halted.\n");
     while (1) ;
 }
+
+void exception_c_handler(int type, uint64_t esr, uint64_t elr) {
+    uart_puts("\n[PANIC] EXCEPTION OCCURRED!\n");
+    uart_puts("Type: "); print_hex((uintptr_t)type); uart_puts("\n");
+    uart_puts("ESR:  "); print_hex((uintptr_t)esr);  uart_puts("\n");
+    uart_puts("ELR:  "); print_hex((uintptr_t)elr);  uart_puts("\n");
+    
+    panic_with_trace("Exception");
+}

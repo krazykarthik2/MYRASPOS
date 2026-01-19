@@ -11,15 +11,15 @@
 #include "virtio.h"
 #include "service.h"
 
-/* Small static page pool for palloc (increase for more heap during testing) */
-static unsigned char palloc_pool[PAGE_SIZE * 256] __attribute__((aligned(PAGE_SIZE)));
+/* Larger page pool for palloc (4MB) */
+static unsigned char palloc_pool[PAGE_SIZE * 1024] __attribute__((aligned(PAGE_SIZE)));
 
 /* forward declaration of init task in init.c */
 extern void init_main(void *arg);
 
 void kernel_main(void) {
     /* basic subsystem init */
-    palloc_init(palloc_pool, 256);
+    palloc_init(palloc_pool, 1024);
     kmalloc_init();
     ramfs_init();
     services_init();

@@ -105,11 +105,17 @@ static uint32_t gpu_w = 0, gpu_h = 0;
 static uint8_t *gpu_qmem = NULL;
 static volatile int gpu_lock = 0;
 
-static uintptr_t input_mmio_base = 0;
-static uint8_t *input_qmem = NULL;
-static struct virtio_input_event *input_ev_buf = NULL;
-static uint32_t input_qsize = 0;
-static uint16_t input_last_used_idx = 0;
+#define MAX_INPUT_DEVICES 4
+struct virtio_input_state {
+    uintptr_t mmio_base;
+    uint8_t *qmem;
+    struct virtio_input_event *ev_buf;
+    uint32_t qsize;
+    uint16_t last_used_idx;
+};
+
+static struct virtio_input_state input_devs[MAX_INPUT_DEVICES];
+static int num_input_devs = 0;
 
 static void gpu_acquire_lock() {
     unsigned int tmp;
@@ -131,6 +137,16 @@ static void gpu_release_lock() {
         "str wzr, [%0]\n"              // Store 0 to lock
         : : "r" (&gpu_lock) : "memory"
     );
+}
+
+static void virtio_flush_dcache(void *start, size_t size) {
+    uintptr_t start_addr = (uintptr_t)start & ~(uintptr_t)63;
+    uintptr_t end_addr = (uintptr_t)start + size;
+    
+    for (uintptr_t p = start_addr; p < end_addr; p += 64) {
+        __asm__ volatile("dc civac, %0" : : "r" (p) : "memory");
+    }
+    __asm__ volatile("dmb sy" ::: "memory");
 }
 
 static int virtio_gpu_send_command(void *req, size_t req_len, void *resp, size_t resp_len) {
@@ -459,93 +475,203 @@ void virtio_gpu_flush(void) {
     virtio_gpu_send_command(&fl_cmd, sizeof(fl_cmd), &gen_resp, sizeof(gen_resp));
 }
 
+
+
 int virtio_input_init(void) {
-    uart_puts("[virtio] searching for virtio-input\n");
-    uintptr_t found_base = 0;
-    for (int i = 0; i < 32; i++) {
+    uart_puts("[virtio] searching for virtio-input devices...\n");
+    num_input_devs = 0;
+
+    for (int i = 0; i < 32 && num_input_devs < MAX_INPUT_DEVICES; i++) {
         uintptr_t base = 0x0A000000UL + i * 0x200;
         volatile uint32_t *r = (volatile uint32_t *)base;
         if (r[0] != 0x74726976u) continue;
         if (r[2] == 18u) { // dev_id 18 = input
-            found_base = base;
-            uart_puts("[virtio] found virtio-input at 0x"); uart_put_hex(found_base); uart_puts("\n");
-            break;
+            uint32_t version = r[1];
+            uart_puts("[virtio] found virtio-input (v");
+            uart_put_hex(version);
+            uart_puts(") at 0x"); 
+            uart_put_hex(base); uart_puts("\n");
+
+            struct virtio_input_state *dev = &input_devs[num_input_devs];
+            dev->mmio_base = base;
+            
+            #define RI_INIT(off) ((volatile uint32_t *)(base + (off)))
+            
+            uart_puts("[virtio] input: reset...\n");
+            *RI_INIT(0x070) = 0; 
+            for(volatile int d=0; d<10000; d++); /* delay */
+            *RI_INIT(0x070) = 1; /* ACKNOWLEDGE */
+            *RI_INIT(0x070) |= 2; /* DRIVER */
+            for(volatile int d=0; d<10000; d++); /* delay */
+
+            /* Feature Negotiation */
+            *RI_INIT(0x014) = 0; /* DEVICE_FEATURES_SEL = 0 */
+            uint32_t features = *RI_INIT(0x010);
+            (void)features; // read to ack
+            
+            *RI_INIT(0x024) = 0; /* DRIVER_FEATURES_SEL = 0 */
+            *RI_INIT(0x020) = 0; /* DRIVER_FEATURES = 0 (we don't use any yet) */
+
+            uart_puts("[virtio] input: features OK check...\n");
+            if (version >= 2) {
+                *RI_INIT(0x070) |= 8; /* FEATURES_OK */
+                for(volatile int d=0; d<10000; d++); /* delay */
+                if (!(*RI_INIT(0x070) & 8)) {
+                    uart_puts("[virtio] input FEATURES_OK failed\n");
+                    continue;
+                }
+            }
+
+            /* ISOLATION TEST 2 REVERTED: QUEUE SETUP ENABLED */
+            // goto skip_setup; 
+            
+            /* QUEUE 0 */
+            *RI_INIT(0x030) = 0;
+            uint32_t qmax = *RI_INIT(0x034);
+            if (qmax == 0) {
+                uart_puts("[virtio] input device has no queue 0\n");
+                continue;
+            }
+            dev->qsize = qmax < 32 ? qmax : 32;
+            *RI_INIT(0x038) = dev->qsize;
+
+
+            /* Use Static Memory for Queues (Like GPU) to avoid palloc/alignment/coherence issues */
+            static uint8_t input_queues_static[MAX_INPUT_DEVICES][8192] __attribute__((aligned(4096)));
+            
+            dev->qmem = input_queues_static[num_input_devs];
+            memset(dev->qmem, 0, 8192);
+            
+            uintptr_t phys = (uintptr_t)dev->qmem;
+            uart_puts("[virtio] input queue (8KB) static at: "); uart_put_hex(phys); uart_puts("\n");
+
+            if (version >= 2) {
+                *RI_INIT(0x080) = (uint32_t)phys;
+                *RI_INIT(0x084) = (uint32_t)(phys >> 32);
+                *RI_INIT(0x090) = (uint32_t)(phys + dev->qsize * 16);
+                *RI_INIT(0x094) = (uint32_t)((phys + dev->qsize * 16) >> 32);
+                *RI_INIT(0x0a0) = (uint32_t)(phys + 4096);
+                *RI_INIT(0x0a4) = (uint32_t)((phys + 4096) >> 32);
+                *RI_INIT(0x044) = 1; /* READY */
+            } else {
+                *RI_INIT(0x028) = 4096; /* GuestPageSize */
+                *RI_INIT(0x03c) = 4096; /* QueueAlign (Standard 4KB) */
+                *RI_INIT(0x040) = (uint32_t)(phys / 4096);
+            }
+
+            dev->ev_buf = kmalloc(sizeof(struct virtio_input_event) * dev->qsize);
+            if (!dev->ev_buf) {
+                uart_puts("[virtio] failed to allocate event buffer\n");
+                continue;
+            }
+            dev->last_used_idx = 0;
+            
+
+
+            /* RESTORED: POPULATE QUEUES */
+            for (uint32_t j = 0; j < dev->qsize; j++) {
+                uint8_t *dt = dev->qmem + j * 16;
+                *(uint64_t *)dt = (uintptr_t)&dev->ev_buf[j];
+                *(uint32_t *)(dt + 8) = 32; 
+                *(uint16_t *)(dt + 12) = 2; /* VIRTQ_DESC_F_WRITE */
+                *(uint16_t *)(dt + 14) = 0;
+                
+                volatile uint16_t *avail = (volatile uint16_t *)(dev->qmem + dev->qsize * 16);
+                avail[2 + j] = (uint16_t)j;
+            }
+            
+            volatile uint16_t *avail = (volatile uint16_t *)(dev->qmem + dev->qsize * 16);
+            avail[0] = 1; /* NO_INTERRUPT */
+            __asm__ volatile("dmb sy" ::: "memory");
+            avail[1] = (uint16_t)dev->qsize;
+            __asm__ volatile("dmb sy" ::: "memory");
+            
+            /* CRITICAL: Flush cache so QEMU sees the descriptors */
+            virtio_flush_dcache(dev->qmem, 8192);
+
+            /* VERIFY READBACK */
+            __asm__ volatile("dmb sy" ::: "memory");
+            uint8_t *check_dt = dev->qmem;
+            uint32_t check_len = *(volatile uint32_t *)(check_dt + 8);
+            uart_puts("[virtio] debug: desc[0].len = "); uart_put_hex(check_len); uart_puts("\n");
+
+            *RI_INIT(0x050) = 0; /* notify */
+            
+            uart_puts("[virtio] input setting DRIVER_OK...\n");
+            
+            /* Defensive: ACK any pending interrupts before enabling driver */
+            volatile uint32_t irq_status = *RI_INIT(0x060);
+            (void)irq_status;
+            *RI_INIT(0x064) = 0x3; /* ACK bits 0 and 1 (VRING and CONFIG) */
+            
+            /* Explicit Read-Modify-Write for Status */
+            uint32_t status = *RI_INIT(0x070);
+            *RI_INIT(0x070) = status | 4; /* DRIVER_OK */
+            
+            uart_puts("[virtio] DRIVER_OK set. Input active.\n");
+
+            num_input_devs++;
+            #undef RI_INIT
         }
     }
-    if (!found_base) return -1;
-
-    input_mmio_base = found_base;
-    #define RI(off) ((volatile uint32_t *)(input_mmio_base + (off)))
-
-    /* Reset and set bits */
-    *RI(0x070) = 0; *RI(0x070) = 1; *RI(0x070) |= 2;
-    *RI(0x014) = 0; *RI(0x024) = 0; *RI(0x020) = 0;
-
-    /* QUEUE 0 */
-    *RI(0x030) = 0;
-    uint32_t qmax = *RI(0x034);
-    if (qmax == 0) return -1;
-    input_qsize = qmax < 32 ? qmax : 32;
-    *RI(0x038) = input_qsize;
-
-    static uint8_t iq_mem[8192] __attribute__((aligned(4096)));
-    memset(iq_mem, 0, sizeof(iq_mem));
-    input_qmem = iq_mem;
-    uintptr_t phys = (uintptr_t)input_qmem;
-
-    *RI(0x080) = (uint32_t)phys;
-    *RI(0x084) = (uint32_t)(phys >> 32);
-    *RI(0x090) = (uint32_t)(phys + input_qsize * 16);
-    *RI(0x094) = (uint32_t)((phys + input_qsize * 16) >> 32);
-    *RI(0x0a0) = (uint32_t)(phys + 4096);
-    *RI(0x0a4) = (uint32_t)((phys + 4096) >> 32);
-    *RI(0x044) = 1; /* READY */
-    *RI(0x070) |= 4; /* DRIVER_OK */
-
-    /* Fill avail ring with descriptors for device to write events into */
-    input_ev_buf = kmalloc(sizeof(struct virtio_input_event) * input_qsize);
-    for (uint32_t i = 0; i < input_qsize; i++) {
-        uint8_t *dt = input_qmem + i * 16;
-        *(uint64_t *)dt = (uintptr_t)&input_ev_buf[i];
-        *(uint32_t *)(dt + 8) = sizeof(struct virtio_input_event);
-        *(uint16_t *)(dt + 12) = 2; /* VIRTQ_DESC_F_WRITE */
-        
-        volatile uint16_t *avail = (volatile uint16_t *)(input_qmem + input_qsize * 16);
-        avail[2 + i] = (uint16_t)i;
-    }
-    volatile uint16_t *avail = (volatile uint16_t *)(input_qmem + input_qsize * 16);
-    avail[1] = (uint16_t)input_qsize;
-    __asm__ volatile("dmb sy" ::: "memory");
-    *RI(0x050) = 0; /* notify */
-
-    return 0;
+    uart_puts("[virtio] input init done, devs="); uart_put_hex(num_input_devs); uart_puts("\n");
+    return (num_input_devs > 0) ? 0 : -1;
 }
 
 void virtio_input_poll(void) {
-    if (!input_qmem) return;
-    volatile uint16_t *used = (volatile uint16_t *)(input_qmem + 4096);
-    uint16_t used_idx = used[1];
-    
-    while (input_last_used_idx != used_idx) {
-        uint32_t used_ring_off = 4 + (input_last_used_idx % input_qsize) * 8;
-        uint32_t desc_idx = *(uint32_t *)((uint8_t *)used + used_ring_off);
+    for (int i = 0; i < num_input_devs; i++) {
+        struct virtio_input_state *dev = &input_devs[i];
+        if (!dev->qmem) continue;
+
+        if (!dev->qmem) continue;
         
-        struct virtio_input_event *ev = &input_ev_buf[desc_idx];
-        /* Map virtio-input to our internal types */
-        if (ev->type == VIRTIO_INPUT_EV_KEY) {
-            input_push_event(INPUT_TYPE_KEY, ev->code, (int32_t)ev->value);
-        } else if (ev->type == VIRTIO_INPUT_EV_ABS) {
-            input_push_event(INPUT_TYPE_MOUSE_ABS, ev->code, (int32_t)ev->value);
+        /* Used Ring at offset 4096 (Standard Legacy) */
+        volatile uint16_t *used = (volatile uint16_t *)(dev->qmem + 4096);
+        uint16_t used_idx = used[1];
+        
+        static int debug_counter = 0;
+        if (i == 1 && ((++debug_counter) % 1000 == 0)) { // Log mouse (usually dev 1) occasionally
+             // uart_puts("[virtio] poll dev1 used_idx="); uart_put_hex(used_idx); 
+             // uart_puts(" last="); uart_put_hex(dev->last_used_idx); uart_puts("\n");
         }
-        
-        /* Put descriptor back on avail ring */
-        volatile uint16_t *avail = (volatile uint16_t *)(input_qmem + input_qsize * 16);
-        uint16_t a_idx = avail[1];
-        avail[2 + (a_idx % input_qsize)] = (uint16_t)desc_idx;
-        __asm__ volatile("dmb sy" ::: "memory");
-        avail[1] = a_idx + 1;
-        
-        input_last_used_idx++;
-        *RI(0x050) = 0; /* notify */
+
+        while (dev->last_used_idx != used_idx) {
+            uint32_t used_ring_off = 4 + (dev->last_used_idx % dev->qsize) * 8;
+            uint32_t desc_idx = *(uint32_t *)((uint8_t *)used + used_ring_off);
+            
+            struct virtio_input_event *ev = &dev->ev_buf[desc_idx];
+            
+            /* Debug: see events in UART */
+            // uart_puts("[input] dev="); uart_put_hex(i); 
+            // uart_puts(" type="); uart_put_hex(ev->type);
+            // uart_puts(" code="); uart_put_hex(ev->code);
+            // uart_puts(" val="); uart_put_hex(ev->value); uart_puts("\n");
+            
+            /* Map virtio-input to our internal types */
+            if (ev->type == VIRTIO_INPUT_EV_KEY) {
+                input_push_event(INPUT_TYPE_KEY, ev->code, (int32_t)ev->value);
+            } else if (ev->type == VIRTIO_INPUT_EV_ABS) {
+                input_push_event(INPUT_TYPE_ABS, ev->code, (int32_t)ev->value);
+            } else if (ev->type == VIRTIO_INPUT_EV_REL) {
+                input_push_event(INPUT_TYPE_REL, ev->code, (int32_t)ev->value);
+            }
+            
+            /* Put descriptor back on avail ring */
+            volatile uint16_t *avail = (volatile uint16_t *)(dev->qmem + dev->qsize * 16);
+            uint16_t a_idx = avail[1];
+            avail[2 + (a_idx % dev->qsize)] = (uint16_t)desc_idx;
+            __asm__ volatile("dmb sy" ::: "memory");
+            avail[1] = a_idx + 1;
+            
+            dev->last_used_idx++;
+            
+            #define RI_POLL(off) ((volatile uint32_t *)(dev->mmio_base + (off)))
+            *RI_POLL(0x050) = 0; /* notify */
+            #undef RI_POLL
+        }
     }
 }
+
+
+int virtio_gpu_get_width(void) { return gpu_w; }
+int virtio_gpu_get_height(void) { return gpu_h; }

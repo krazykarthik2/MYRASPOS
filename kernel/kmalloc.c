@@ -31,18 +31,45 @@ void *kmalloc(size_t size) {
     struct km_block *b = free_list;
     while (b) {
         if (b->size >= size) {
-            // For simplicity, return whole block
-            *prev = b->next;
+            /* Check if split is possible */
+            if (b->size >= size + sizeof(struct km_block) + 16) {
+                /* Split */
+                struct km_block *new_block = (struct km_block *)((uint8_t *)b + sizeof(struct km_block) + size);
+                new_block->size = b->size - size - sizeof(struct km_block);
+                new_block->next = b->next;
+                
+                /* Update allocated block size */
+                b->size = size;
+                
+                /* Replace 'b' with 'new_block' in the free list */
+                *prev = new_block;
+            } else {
+                /* No split, unlink whole block */
+                *prev = b->next;
+            }
             return (void *)((uint8_t *)b + sizeof(struct km_block));
         }
         prev = &b->next;
         b = b->next;
     }
     // No block, expand and retry once
+    // No block, try to expand
     km_expand();
     b = free_list;
     if (!b) return NULL;
-    free_list = b->next;
+    
+    // Now that we have a block, try the loop again to respect splitting logic
+    // We can just fall through to a second pass or duplicte logic.
+    // Simplest is to check the fresh block immediately.
+    if (b->size >= size + sizeof(struct km_block) + 16) {
+        struct km_block *new_block = (struct km_block *)((uint8_t *)b + sizeof(struct km_block) + size);
+        new_block->size = b->size - size - sizeof(struct km_block);
+        new_block->next = b->next;
+        b->size = size;
+        free_list = new_block;
+    } else {
+        free_list = b->next;
+    }
     return (void *)((uint8_t *)b + sizeof(struct km_block));
 }
 

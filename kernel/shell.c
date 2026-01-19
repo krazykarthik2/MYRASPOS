@@ -5,6 +5,7 @@
 #include "sched.h"
 #include "programs.h"
 #include "glob.h"
+#include "pty.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -34,6 +35,7 @@ static int cmd_ramfs_import(int argc, char **argv, const char *in, size_t in_len
 static int cmd_systemctl(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
 static int cmd_cd(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
 static int cmd_pwd(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
+static int cmd_exit(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
 
 /* forward helpers */
 static char *abs_path_alloc(const char *p);
@@ -49,6 +51,7 @@ static struct cmd_entry commands[] = {
     {"echo", cmd_echo},
     {"cd", cmd_cd},
     {"pwd", cmd_pwd},
+    {"exit", cmd_exit},
     {"touch", cmd_touch},
     {"write", cmd_write},
     {"cat", cmd_cat},
@@ -187,6 +190,7 @@ struct pipeline_job {
     /* tokens allocated for the whole line (freed at end) */
     char **tokens;
     int token_count;
+    struct pty *pty;
 };
 
 static int exec_command_argv(char **argv, int argc, const char *in, size_t in_len, char *out, size_t out_cap) {
@@ -234,7 +238,7 @@ static void run_pipeline_internal(struct pipeline_job *job) {
             /* write to file via init API */
             init_ramfs_write(job->out_file, inbuf, in_len, job->append);
         } else {
-            /* print to console */
+            /* print to console or PTY */
             size_t off = 0;
             while (off < in_len) {
                 size_t to = in_len - off;
@@ -242,7 +246,12 @@ static void run_pipeline_internal(struct pipeline_job *job) {
                 char tbuf[129];
                 memcpy(tbuf, inbuf + off, to);
                 tbuf[to] = '\0';
-                init_puts(tbuf);
+                
+                if (job->pty) {
+                    for (int k = 0; k < (int)to; ++k) pty_write_out(job->pty, tbuf[k]);
+                } else {
+                    init_puts(tbuf);
+                }
                 off += to;
             }
         }
@@ -610,6 +619,13 @@ static int cmd_pwd(int argc, char **argv, const char *in, size_t in_len, char *o
     return (int)l;
 }
 
+static int shell_should_exit = 0;
+static int cmd_exit(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
+    (void)argc; (void)argv; (void)in; (void)in_len; (void)out; (void)out_cap;
+    shell_should_exit = 1;
+    return 0;
+}
+
 static int cmd_ramfs_export(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
     (void)in; (void)in_len;
     if (argc < 2) { const char *u = "usage: ramfs-export <path>\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m; }
@@ -915,10 +931,29 @@ static int cmd_ps(int argc, char **argv, const char *in, size_t in_len, char *ou
 
 /* shell main */
 void shell_main(void *arg) {
-    (void)arg;
-    shell_puts("myras shell v0.2\nType 'help' for commands.\n");
+    struct pty *pty = (struct pty *)arg;
+    
+    if (pty) {
+        uart_puts("[shell] GUI SHELL PROBE START\n");
+        // *(volatile int*)0 = 0; // Trigger Data Abort
+        // uart_puts("[shell] PROBE SURVIVED (This should not happen)\n");
+    }
+    shell_should_exit = 0;
+    
+    uart_puts("[shell] starting with arg="); uart_put_hex((uintptr_t)arg); uart_puts("\n");
+
+    if (pty) {
+        /* Write banner to PTY */
+        const char *b = "myras shell v0.2 (PTY)\nType 'help' for commands.\n";
+        for (const char *s = b; *s; ++s) pty_write_out(pty, *s);
+    } else {
+        shell_puts("myras shell v0.2\nType 'help' for commands.\n");
+    }
+
     char line[256];
     for (;;) {
+        if (shell_should_exit) break;
+        
         /* print prompt showing current cwd: myras::/path$ */
         char pbuf[320]; size_t pl = 0;
         const char *prefix = "myras::";
@@ -929,14 +964,61 @@ void shell_main(void *arg) {
             memcpy(pbuf + pl, shell_cwd, cwdlen); pl += cwdlen;
             pbuf[pl++] = '$'; pbuf[pl++] = ' ';
             pbuf[pl] = '\0';
-            shell_puts(pbuf);
         } else {
-            shell_puts("myras> ");
+            strcpy(pbuf, "myras> ");
         }
-        int len = shell_read_line(line, sizeof(line));
+
+        if (pty) {
+            for (char *s = pbuf; *s; ++s) pty_write_out(pty, *s);
+        } else {
+            shell_puts(pbuf);
+        }
+
+        int len = 0;
+        if (pty) {
+            uart_puts("[shell] entering pty loop\n");
+            size_t i = 0;
+            uart_puts("[shell] loop start\n");
+            while (i + 1 < sizeof(line)) {
+                // uart_puts("L"); // loop
+                if (!pty_has_in(pty)) { 
+                    yield(); 
+                    continue; 
+                }
+                // uart_puts("[shell] has input!\n");
+                char c = pty_read_in(pty);
+                /* DEBUG: Trace input flow */
+                // uart_puts("[shell] PTY read char: "); uart_put_hex(c); uart_puts("\n");
+                if (c == '\r' || c == '\n') { pty_write_out(pty, '\n'); break; }
+                if (c == '\b' || c == 127) { 
+                    if (i > 0) { 
+                        i--; 
+                        pty_write_out(pty, '\b'); pty_write_out(pty, ' '); pty_write_out(pty, '\b'); 
+                    } 
+                    continue; 
+                }
+                pty_write_out(pty, c); 
+                line[i++] = c;
+            }
+            line[i] = '\0';
+            len = i;
+        } else {
+            len = shell_read_line(line, sizeof(line));
+        }
+
         if (len <= 0) { yield(); continue; }
+
+        uart_puts("[shell] processing line: '"); uart_puts(line); uart_puts("'\n");
+
         struct pipeline_job *job = parse_pipeline(line);
-        if (!job) { shell_puts("error parsing\n"); continue; }
+        if (!job) { 
+            if (pty) { const char *e="error parsing\n"; for(const char*s=e;*s;++s) pty_write_out(pty,*s); }
+            else shell_puts("error parsing\n"); 
+            continue; 
+        }
+        /* Pass PTY to job */
+        job->pty = pty;
+
         if (job->background) {
             /* create a background wrapper task that runs once and then disables itself */
             int pid = task_create(background_wrapper, job, "background");
@@ -944,7 +1026,14 @@ void shell_main(void *arg) {
             char bbuf[32]; int bl = 0;
             int tmp = pid; if (tmp==0) { bbuf[bl++]='0'; }
             else { int p10[16]; int pi=0; while (tmp>0 && pi<16) { p10[pi++]=tmp%10; tmp/=10; } for (int j=pi-1;j>=0;--j) bbuf[bl++]= '0' + p10[j]; }
-            bbuf[bl++]='\n'; bbuf[bl]=0; init_puts("started pid "); init_puts(bbuf);
+            bbuf[bl++]='\n'; bbuf[bl]=0; 
+            if (pty) {
+                const char *msg = "started pid ";
+                for(const char*s=msg;*s;++s) pty_write_out(pty,*s);
+                for(char*s=bbuf;*s;++s) pty_write_out(pty,*s);
+            } else {
+                init_puts("started pid "); init_puts(bbuf);
+            }
         } else {
             /* run pipeline directly in the shell task (foreground). Poll for Ctrl+C between commands. */
             /* clear interrupt flag */
@@ -961,4 +1050,7 @@ void shell_main(void *arg) {
             kfree(job);
         }
     }
+    /* Exiting shell */
+    int pid = task_current_id();
+    if (pid > 0) task_set_fn_null(pid);
 }

@@ -55,6 +55,15 @@ static int tree_walk(const char *dir, int depth, char *out, size_t out_cap, size
         }
 
         p += l + 1;
+        
+        /* Debug check: avoid too deep recursion */
+        if (depth > 10) {
+            if (*off + 20 < out_cap) {
+               strcpy(out + *off, " ... (too deep)\n");
+               *off += strlen(out + *off);
+            }
+            return 0;
+        }
     }
     return 0;
 }

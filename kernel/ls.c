@@ -18,7 +18,8 @@ int prog_ls(int argc, char **argv, const char *in, size_t in_len, char *out, siz
         if (!cwd) return -1;
         int r = init_ramfs_list(cwd, out, out_cap);
         kfree((void*)cwd);
-        if (r < 0) return (int)r; return r;
+        if (r < 0) return (int)r;
+        return r;
     }
     /* detect glob characters */
     int has_glob = 0;

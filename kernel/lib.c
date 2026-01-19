@@ -13,6 +13,19 @@ void *memcpy(void *dest, const void *src, size_t n) {
     return dest;
 }
 
+void *memmove(void *dest, const void *src, size_t n) {
+    unsigned char *d = (unsigned char *)dest;
+    const unsigned char *s = (const unsigned char *)src;
+    if (d < s) {
+        while (n--) *d++ = *s++;
+    } else if (d > s) {
+        d += n;
+        s += n;
+        while (n--) *--d = *--s;
+    }
+    return dest;
+}
+
 int memcmp(const void *a, const void *b, size_t n) {
     const unsigned char *pa = (const unsigned char *)a;
     const unsigned char *pb = (const unsigned char *)b;
@@ -109,4 +122,35 @@ int atoi(const char *s) {
     else if (*s == '-') { sign = -1; ++s; }
     while (*s >= '0' && *s <= '9') { v = v * 10 + (*s - '0'); ++s; }
     return v * sign;
+}
+int levenshtein_distance(const char *s1, const char *s2) {
+    int len1 = (int)strlen(s1);
+    int len2 = (int)strlen(s2);
+    
+    if (len1 > 63) len1 = 63;
+    if (len2 > 63) len2 = 63;
+    
+    /* Use two rows instead of full matrix to save stack space (O(min(m,n))) */
+    int v0[64 + 1];
+    int v1[64 + 1];
+    
+    for (int i = 0; i <= len2; i++) v0[i] = i;
+    
+    for (int i = 0; i < len1; i++) {
+        v1[0] = i + 1;
+        for (int j = 0; j < len2; j++) {
+            int cost = (s1[i] == s2[j]) ? 0 : 1;
+            int del = v0[j + 1] + 1;
+            int ins = v1[j] + 1;
+            int sub = v0[j] + cost;
+            
+            int min = del;
+            if (ins < min) min = ins;
+            if (sub < min) min = sub;
+            
+            v1[j + 1] = min;
+        }
+        for (int j = 0; j <= len2; j++) v0[j] = v1[j];
+    }
+    return v0[len2];
 }

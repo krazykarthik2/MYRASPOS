@@ -152,18 +152,18 @@ void init_main(void *arg) {
     init_service_start("boot");
     init_service_start("info");
 
+    /* Start GUI and Input system */
+    /* Start GUI and Input system */
+    // Always try to start GUI for now, even if input fails
+    virtio_input_init();
+    
+    init_puts("[init] GUI subsystem starting...\n");
+    wm_init();
+    wm_start_task();
+    /* Terminal is no longer auto-started - user can launch from Myra */
+
     init_puts("[init] starting shell...\n");
     init_start_shell();
-
-    /* Start GUI and Input system */
-    if (virtio_input_init() == 0) {
-        init_puts("[init] GUI subsystem starting...\n");
-        wm_init();
-        wm_start_task();
-        terminal_app_start();
-    } else {
-        init_puts("[init] No input device found, skipping GUI\n");
-    }
 
     for (;;) {
         yield();

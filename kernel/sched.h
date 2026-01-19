@@ -4,6 +4,22 @@
 #include <stddef.h>
 #include <stdint.h>
 
+struct task_context {
+    uint64_t x19;
+    uint64_t x20;
+    uint64_t x21;
+    uint64_t x22;
+    uint64_t x23;
+    uint64_t x24;
+    uint64_t x25;
+    uint64_t x26;
+    uint64_t x27;
+    uint64_t x28;
+    uint64_t x29;
+    uint64_t x30;
+    uint64_t sp;
+};
+
 typedef void (*task_fn)(void *arg);
 
 int scheduler_init(void);
@@ -16,6 +32,7 @@ int task_current_id(void);
 void task_set_tty(int id, void *tty);
 void* task_get_tty(int id);
 int task_set_fn_null(int id);
+int task_set_parent(int id, int parent_id);  /* Change task's parent */
 /* block current task until tick (monotonic) */
 void task_block_current_until(uint32_t wake_tick);
 /* advance scheduler tick (called by timer) and wake tasks */
