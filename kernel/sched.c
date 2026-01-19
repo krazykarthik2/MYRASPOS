@@ -6,6 +6,7 @@
 #include "lib.h"
 #include "timer.h"
 #include "irq.h"
+#include "palloc.h"
 
 extern void cpu_switch_to(struct task_context *prev, struct task_context *next);
 extern void ret_from_fork(void);
@@ -28,6 +29,7 @@ struct task {
     
     int parent_id; /* ID of parent task */
     struct task *next;
+    uint32_t magic; /* 0xDEADC0DE */
 };
 
 static struct task *task_head = NULL;
@@ -60,8 +62,10 @@ int task_create(task_fn fn, void *arg, const char *name) {
     if (!t) return -1;
     memset(t, 0, sizeof(*t));
     
-    t->stack = kmalloc(4096);
+    t->stack = kmalloc(2048);
     if (!t->stack) { kfree(t); return -1; }
+    memset(t->stack, 0, 2048);
+    t->magic = 0xDEADC0DE;
     
     t->id = next_task_id++;
     t->fn = fn;
@@ -76,9 +80,16 @@ int task_create(task_fn fn, void *arg, const char *name) {
     t->context.x20 = (uint64_t)arg;
     t->context.x30 = (uint64_t)ret_from_fork;
     /* Ensure SP is 16-byte aligned */
-    uint64_t sp = (uint64_t)t->stack + 4096;
+    uint64_t sp = (uint64_t)t->stack + 2048;
     sp &= ~0xF; 
     t->context.sp = sp;
+
+    /* DEBUG Trace Task Entry */
+    uart_puts("[sched] DBG: "); uart_puts(name);
+    uart_puts(" fn="); uart_put_hex((uint32_t)(uintptr_t)fn);
+    uart_puts(" ctx.x19="); uart_put_hex((uint32_t)t->context.x19);
+    uart_puts(" ctx.x30="); uart_put_hex((uint32_t)t->context.x30);
+    uart_puts("\n");
     
     if (name) {
         strncpy(t->name, name, sizeof(t->name) - 1);
@@ -198,6 +209,13 @@ void schedule(void) {
     if (next == prev) return;
 
     /* Perform Switch */
+    if (next->magic != 0xDEADC0DE) {
+        uart_puts("[sched] CRITICAL: task magic corrupted for "); uart_puts(next->name);
+        uart_puts(" magic="); uart_put_hex(next->magic);
+        uart_puts(" addr="); uart_put_hex((uint32_t)(uintptr_t)next);
+        uart_puts("\n");
+        panic("Task corruption detected");
+    }
     task_cur = next;
     
     if (next->id > 1) { 

@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include "uart.h"
 
 static void *free_list[PALLOC_MAX_PAGES];
 static size_t free_count = 0;
@@ -23,6 +24,7 @@ void *palloc_alloc(void) {
     void *page = free_list[--free_count];
     // zero page
     memset(page, 0, PAGE_SIZE);
+    uart_puts("[palloc] alloc: "); uart_put_hex((uint32_t)(uintptr_t)page); uart_puts("\n");
     return page;
 }
 

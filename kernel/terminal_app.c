@@ -142,8 +142,12 @@ void terminal_app_start(void) {
     g_term->last_blink = timer_get_ms();
     
     g_term->win = wm_create_window("Terminal", 50, 50, 600, 300, term_render_fn);
+    uart_puts("[terminal] window allocated at: "); uart_put_hex((uintptr_t)g_term->win); uart_puts("\n");
+    
     g_term->win->on_close = terminal_on_close;
     g_term->win->tty = g_term->pty;
+    
+    uart_puts("[terminal] About to create task. Checking task list...\n");
     
     int term_task_id = task_create(term_update_task, NULL, "term_emulator");
     

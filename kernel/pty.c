@@ -29,6 +29,8 @@ struct pty* pty_alloc(void) {
     if (p) {
         memset(p, 0, sizeof(*p));
         p->lock = 0;
+    } else {
+        uart_puts("[pty] ERROR: pty_alloc failed (kmalloc returned NULL)\n");
     }
     return p;
 }
@@ -36,16 +38,11 @@ struct pty* pty_alloc(void) {
 void pty_write_in(struct pty *p, char c) {
     if (!p) return;
     unsigned long flags = pty_lock(p);
-    int next = (p->in_h + 1) % 1024;
+    int next = (p->in_h + 1) % 512;
     if (next != p->in_t) {
         p->in_buf[p->in_h] = c;
         p->in_h = next;
-        uart_puts("[pty] write in: "); uart_put_hex(c); 
-        uart_puts(" h="); uart_put_hex(p->in_h); 
-        uart_puts(" t="); uart_put_hex(p->in_t); uart_puts("\n");
-    } else {
-        uart_puts("[pty] write_in FULL\n");
-    }
+    } 
     pty_unlock(p, flags);
 }
 
@@ -57,7 +54,7 @@ char pty_read_in(struct pty *p) {
         return 0;
     }
     char c = p->in_buf[p->in_t];
-    p->in_t = (p->in_t + 1) % 1024;
+    p->in_t = (p->in_t + 1) % 512;
     pty_unlock(p, flags);
     return c;
 }
@@ -65,7 +62,7 @@ char pty_read_in(struct pty *p) {
 void pty_write_out(struct pty *p, char c) {
     if (!p) return;
     unsigned long flags = pty_lock(p);
-    int next = (p->out_h + 1) % 8192;
+    int next = (p->out_h + 1) % 2048;
     if (next != p->out_t) {
         p->out_buf[p->out_h] = c;
         p->out_h = next;
@@ -81,7 +78,7 @@ char pty_read_out(struct pty *p) {
         return 0;
     }
     char c = p->out_buf[p->out_t];
-    p->out_t = (p->out_t + 1) % 8192;
+    p->out_t = (p->out_t + 1) % 2048;
     pty_unlock(p, flags);
     return c;
 }

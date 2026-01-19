@@ -18,5 +18,8 @@ char *strcpy(char *dest, const char *src);
 char *strtok(char *s, const char *delim);
 int atoi(const char *s);
 int levenshtein_distance(const char *s1, const char *s2);
+int tolower(int c);
+char *strcasestr(const char *haystack, const char *needle);
+int levenshtein_distance_ci(const char *s1, const char *s2);
 
 #endif

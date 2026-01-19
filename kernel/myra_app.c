@@ -74,25 +74,32 @@ struct myra_app_state {
 static struct myra_app_state *g_myra = NULL;
 
 static int get_search_score(char *input, const char *candidate) {
-    /* 1. Prefix Match (Best) */
-    if (strstr(candidate, input) == candidate) {
-        return levenshtein_distance(input, candidate); /* 0 or small */
+    /* 1. Exact Match (Best) - Case Insensitive */
+    if (levenshtein_distance_ci(input, candidate) == 0) return 0;
+
+    /* 2. Prefix Match - Case Insensitive */
+    char *p = strcasestr(candidate, input);
+    if (p == candidate) {
+        /* Smaller penalty for prefix match, weight by length difference */
+        return 1 + (int)(strlen(candidate) - strlen(input));
     }
-    /* 2. Contains Match */
-    if (strstr(candidate, input)) {
-        return levenshtein_distance(input, candidate) + 5; /* Penalty */
+
+    /* 3. Contains Match - Case Insensitive */
+    if (p) {
+        /* Larger penalty for mid-string match */
+        return 5 + (int)(strlen(candidate) - strlen(input));
     }
-    /* 3. Fuzzy Match */
-    return levenshtein_distance(input, candidate) + 10; /* Big penalty */
+
+    /* 4. Fuzzy Match - Case Insensitive */
+    int dist = levenshtein_distance_ci(input, candidate);
+    if (dist < 3) return 10 + dist; /* Only allow very close fuzzy matches */
+
+    return 100; /* No match */
 }
 
 static void myra_on_close(struct window *win) {
     (void)win;
-    if (g_myra) {
-        /* Don't kfree yet, let myra_task finish its loop if it's running */
-        /* But we need to signal it to exit */
-        g_myra = NULL;
-    }
+    if (g_myra) g_myra = NULL;
 }
 
 static void update_search(void) {
@@ -103,13 +110,12 @@ static void update_search(void) {
         int count = 0;
         for (size_t i = 0; i < NUM_APPS; i++) {
             int score = get_search_score(g_myra->search_query, apps[i].name);
-            /* Threshold: Fuzzy (dist+50) means dist<=5 -> score<=55 */
-            if (score < 12) {
+            if (score <= 15) {
                 apps[i].dist = score;
                 g_myra->filtered_apps[count++] = &apps[i];
             }
         }
-        /* Sort by score */
+        /* Sort by score (Stable Bubble Sort) */
         for (int i = 0; i < count - 1; i++) {
             for (int j = 0; j < count - i - 1; j++) {
                 if (g_myra->filtered_apps[j]->dist > g_myra->filtered_apps[j+1]->dist) {

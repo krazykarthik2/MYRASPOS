@@ -154,3 +154,49 @@ int levenshtein_distance(const char *s1, const char *s2) {
     }
     return v0[len2];
 }
+
+int tolower(int c) {
+    if (c >= 'A' && c <= 'Z') return c + ('a' - 'A');
+    return c;
+}
+
+char *strcasestr(const char *haystack, const char *needle) {
+    if (!*needle) return (char *)haystack;
+    for (; *haystack; haystack++) {
+        if (tolower((unsigned char)*haystack) == tolower((unsigned char)*needle)) {
+            const char *h = haystack;
+            const char *n = needle;
+            while (*h && *n && tolower((unsigned char)*h) == tolower((unsigned char)*n)) {
+                h++;
+                n++;
+            }
+            if (!*n) return (char *)haystack;
+        }
+    }
+    return NULL;
+}
+
+int levenshtein_distance_ci(const char *s1, const char *s2) {
+    int len1 = (int)strlen(s1);
+    int len2 = (int)strlen(s2);
+    if (len1 > 63) len1 = 63;
+    if (len2 > 63) len2 = 63;
+    int v0[64 + 1];
+    int v1[64 + 1];
+    for (int i = 0; i <= len2; i++) v0[i] = i;
+    for (int i = 0; i < len1; i++) {
+        v1[0] = i + 1;
+        for (int j = 0; j < len2; j++) {
+            int cost = (tolower((unsigned char)s1[i]) == tolower((unsigned char)s2[j])) ? 0 : 1;
+            int del = v0[j + 1] + 1;
+            int ins = v1[j] + 1;
+            int sub = v0[j] + cost;
+            int min = del;
+            if (ins < min) min = ins;
+            if (sub < min) min = sub;
+            v1[j + 1] = min;
+        }
+        for (int j = 0; j <= len2; j++) v0[j] = v1[j];
+    }
+    return v0[len2];
+}

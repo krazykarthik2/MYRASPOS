@@ -4,9 +4,9 @@
 #include <stdint.h>
 
 struct pty {
-    char in_buf[1024];
+    char in_buf[512];
     int in_h, in_t;
-    char out_buf[8192];
+    char out_buf[2048];
     int out_h, out_t;
     volatile int lock;
 };
