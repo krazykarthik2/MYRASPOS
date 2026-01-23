@@ -133,8 +133,12 @@ void wm_close_window(struct window *win) {
             if (focused_window == win) {
                 focused_window = window_list; /* naive: focus next top */
             }
+            wm_list_unlock();
+            if (win->on_close) {
+                win->on_close(win);
+            }
             kfree(win);
-            break;
+            return;
         }
         prev = &curr->next;
         curr = curr->next;
@@ -183,26 +187,23 @@ static void wm_bring_to_front(struct window *win) {
     }
 }
 
-static void wm_handle_clicks(void) {
-    static int last_btn = 0;
+static void wm_handle_clicks(int is_press) {
     static struct window *drag_win = NULL;
     static int drag_off_x = 0, drag_off_y = 0;
 
-    int pressed = (mouse_btn && !last_btn);
-    int released = (!mouse_btn && last_btn);
-    
-    if (released) {
+    if (!mouse_btn) {
         drag_win = NULL;
     }
     
     if (mouse_btn && drag_win) {
         drag_win->x = mouse_x - drag_off_x;
         drag_win->y = mouse_y - drag_off_y;
-        /* constrain to screen? optional */
     }
 
-    last_btn = mouse_btn;
-    if (!pressed) return;
+    if (!is_press) return;
+
+    /* Lock the list while we iterate to handle clicks */
+    wm_list_lock();
 
     // 1. Check Taskbar first (top-most layer)
     if (mouse_y >= screen_h - taskbar_h) {
@@ -238,7 +239,10 @@ static void wm_handle_clicks(void) {
                 mouse_y >= w->y && mouse_y <= w->y + w->h) {
                 
                 // Focus and bring to front
-                focused_window = w;
+                if (focused_window != w) {
+                    uart_puts("[wm] Focus change: "); uart_puts(w->name); uart_puts("\n");
+                    focused_window = w;
+                }
                 wm_bring_to_front(w);
 
                 // Check for buttons in title bar (only if not fullscreen)
@@ -269,6 +273,7 @@ static void wm_handle_clicks(void) {
         }
         w = w->next;
     }
+    wm_list_unlock();
 }
 
 static void draw_taskbar(void) {
@@ -280,8 +285,9 @@ static void draw_taskbar(void) {
     fb_draw_rect(5, screen_h - taskbar_h + 5, 60, taskbar_h - 10, 0x00AA00);
     fb_draw_text(10, screen_h - taskbar_h + 8, "MYRA", 0xFFFFFF, 2);
 
-    /* Draw window entries */
+    /* Draw window entries - CRITICAL: Use locking to prevent race with window creation/deletion */
     int x = 75;
+    wm_list_lock();
     struct window *w = window_list;
     while (w) {
         uint32_t color = (w->state == WM_STATE_MINIMIZED) ? 0x333333 : 0x5555FF;
@@ -294,6 +300,7 @@ static void draw_taskbar(void) {
         x += 85;
         w = w->next;
     }
+    wm_list_unlock();
 }
 
 static void draw_cursor(void) {
@@ -360,9 +367,9 @@ void wm_compose(void) {
     while (input_pop_mouse_event(&ev)) {
         /*
         if (ev.type == INPUT_TYPE_REL || ev.type == INPUT_TYPE_ABS || ev.type == INPUT_TYPE_MOUSE_BTN) {
-             uart_puts("[wm] mouse type="); uart_put_hex(ev.type); 
-             uart_puts(" code="); uart_put_hex(ev.code); 
-             uart_puts(" val="); uart_put_hex(ev.value); uart_puts("\n");
+             // uart_puts("[wm] mouse type="); uart_put_hex(ev.type); 
+             // uart_puts(" code="); uart_put_hex(ev.code); 
+             // uart_puts(" val="); uart_put_hex(ev.value); uart_puts("\n");
         }
         */
 
@@ -370,23 +377,24 @@ void wm_compose(void) {
             if (ev.code == 0) mouse_x = scale_mouse(ev.value, screen_w);
             if (ev.code == 1) mouse_y = scale_mouse(ev.value, screen_h);
         } else if (ev.type == INPUT_TYPE_REL) {
-            /* Handle Relative Motion (Mouse) */
-            if (ev.code == 0) mouse_x += ev.value; /* REL_X */
-            if (ev.code == 1) mouse_y += ev.value; /* REL_Y */
-            /* Clamp to screen */
-            if (mouse_x < 0) mouse_x = 0;
-            if (mouse_x >= screen_w) mouse_x = screen_w - 1;
-            if (mouse_y < 0) mouse_y = 0;
-            if (mouse_y >= screen_h) mouse_y = screen_h - 1;
+            if (ev.code == 0) mouse_x += ev.value;
+            if (ev.code == 1) mouse_y += ev.value;
         } else if (ev.type == INPUT_TYPE_MOUSE_BTN) {
-            if (ev.code == 0x110) mouse_btn = ev.value;
+            if (ev.code == 0x110) {
+                int was_pressed = (ev.value && !mouse_btn);
+                mouse_btn = ev.value;
+                if (was_pressed) wm_handle_clicks(1);
+            }
         }
     }
+    
+    // Maintain dragging and non-press logic
+    wm_handle_clicks(0);
     
     /* Distribute keyboard events */
     struct input_event kev;
     while (input_pop_key_event(&kev)) {
-        uart_puts("[wm] popped key event\n");
+        // uart_puts("[wm] popped key event\n");
         if (focused_window) {
             wm_lock_window(focused_window);
             int next_head = (focused_window->input_head + 1) % WM_INPUT_QUEUE_SIZE;
@@ -398,9 +406,11 @@ void wm_compose(void) {
                 
                 /* UART Diagnostic: Event distributed */
                 if (kev.value >= 1) { // press or repeat
+                    /*
                     uart_puts("[wm] dist code="); uart_put_hex(kev.code);
                     uart_puts(" val="); uart_put_hex(kev.value);
                     uart_puts(" to '"); uart_puts(focused_window->name); uart_puts("'\n");
+                    */
                 }
 
                 /* TTY Streaming: if window has a tty, push ASCII directly */
@@ -459,8 +469,6 @@ void wm_compose(void) {
     if (mouse_x >= screen_w) mouse_x = screen_w - 1;
     if (mouse_y >= screen_h) mouse_y = screen_h - 1;
 
-    wm_handle_clicks();
-
     /* 1. Desktop background (Steel Blue) */
     fb_draw_rect(0, 0, screen_w, screen_h, 0x4682B4);
 
@@ -508,23 +516,29 @@ void wm_compose(void) {
             if (w->draw_content) w->draw_content(w);
         }
     }
+    // uart_puts("[wm] window loop done\n");
 
     /* 3. Taskbar */
     draw_taskbar();
+    // uart_puts("[wm] taskbar done\n");
 
     /* 4. Cursor */
     draw_cursor();
+    // uart_puts("[wm] cursor done\n");
 
     /* Flush to GPU */
     virtio_gpu_flush();
+    // uart_puts("[wm] compose done\n");
 }
 
 static void wm_task(void *arg) {
     (void)arg;
     while (1) {
         wm_compose();
+        // uart_puts("[wm] returned from compose\n");
         /* ~30 FPS */
         timer_sleep_ms(33);
+        // uart_puts("[wm] woke from sleep\n");
         
         /* Heartbeat every ~30 frames (approx 1 sec) */
         static int frames = 0;

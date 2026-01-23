@@ -23,8 +23,7 @@ void kernel_main(void) {
     kmalloc_init();
     ramfs_init();
     services_init();
-    /* early debug: make sure UART is operational */
-    uart_puts("[kernel] booting...\n");
+    // uart_puts("[kernel] booting...\n");
 
     /* Try to initialize virtio-gpu (preferred). If that fails, fall back
        to the fixed RAMFB address (for QEMU variants that expose it). */
@@ -74,8 +73,8 @@ void kernel_main(void) {
     syscall_init();
     syscall_register_defaults();
 
-    /* create init task which will run a shell */
-    task_create(init_main, NULL, "init");
+    /* create init task which will run a shell - needs large stack for bootup (virtio, services, etc.) */
+    task_create_with_stack(init_main, NULL, "init", 64);
 
     /* run scheduler loop cooperatively */
     while (1) {

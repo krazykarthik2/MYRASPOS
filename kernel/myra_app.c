@@ -10,6 +10,7 @@
 #include "timer.h"
 #include <string.h>
 #include "uart.h"
+#include "files_app.h"
 
 struct app_info {
     const char *name;
@@ -20,16 +21,7 @@ struct app_info {
 /* Mock applications */
 static void launch_terminal(void) { terminal_app_start(); }
 
-static void files_draw(struct window *win) {
-    fb_draw_text(win->x + 20, win->y + 40, "File Explorer", 0xAAAAAA, 2);
-    fb_draw_hline(win->x + 20, win->x + win->w - 20, win->y + 65, 0x444444);
-    const char *items[] = {"Documents", "Downloads", "Music", "Pictures", "System"};
-    for (int i = 0; i < 5; i++) {
-        fb_draw_rect(win->x + 30, win->y + 80 + i * 40, 32, 24, 0xDAA520);
-        fb_draw_text(win->x + 75, win->y + 85 + i * 40, items[i], 0xFFFFFF, 1);
-    }
-}
-static void launch_files(void) { wm_create_window("Files", 120, 120, 400, 300, files_draw); }
+static void launch_files(void) { files_app_start(); }
 
 static void settings_draw(struct window *win) {
     fb_draw_text(win->x + 20, win->y + 40, "System Settings", 0xAAAAAA, 2);
@@ -131,6 +123,7 @@ static void update_search(void) {
 
 static void myra_draw(struct window *win) {
     if (!g_myra) return;
+    uart_puts("[myra] drawing\n");
 
     /* Blink logic (simulated here for simplicity, or done in task and state updated) */
     /* Actually task updates visible state, we just draw */
@@ -139,29 +132,26 @@ static void myra_draw(struct window *win) {
     fb_draw_rect(win->x + win->w/2 - 100, win->y + 30, 200, 25, 0x333333);
     fb_draw_rect_outline(win->x + win->w/2 - 100, win->y + 30, 200, 25, 0xAAAAAA, 1);
     
+    uart_puts("[myra] drawn search bar\n");
+
     /* Search Text */
     int text_x = win->x + win->w/2 - 95;
     int text_y = win->y + 35;
     if (g_myra->query_len > 0) {
         fb_draw_text(text_x, text_y, g_myra->search_query, 0xFFFFFF, 1);
-        /* Draw Cursor */
-        if (g_myra->cursor_visible) {
-             /* 8 pixels per char approx? Font is 8x16 usually or 5x7 scaled by 1=5, 2=10? */
-             /* fb_draw_text uses scale. default font is 5 wide + 1 space = 6? verify framebuffer.c */
-             /* Assuming scale 1: 5+1=6px. Scale 2: 12px? Let's guess 8px per char for scale 1. */
-             /* fb_draw_text impl: x += (6 * scale) */
-             int width_per_char = 6 * 1; 
-             fb_draw_rect(text_x + g_myra->query_len * width_per_char, text_y, 2, 12, 0xFFFFFF);
-        }
+        uart_puts("[myra] drawn search text\n");
     } else {
         fb_draw_text(text_x, text_y, "Search...", 0x888888, 1);
+        uart_puts("[myra] drawn placeholder\n");
     }
 
     /* Grid layout 6x6 */
     int cell_w = win->w / 6;
     int cell_h = (win->h - 60) / 6;
 
+    uart_puts("[myra] drawing grid\n");
     for (int i = 0; i < g_myra->num_filtered; i++) {
+        uart_puts("[myra] item "); uart_put_hex(i); uart_puts("\n");
         int r = i / 6;
         int c = i % 6;
         int x = win->x + c * cell_w + 10;
@@ -172,8 +162,13 @@ static void myra_draw(struct window *win) {
         fb_draw_rect_outline(x, y, 40, 40, 0xFFFFFF, 1);
         
         /* App Name */
-        fb_draw_text(x, y + 45, g_myra->filtered_apps[i]->name, 0xFFFFFF, 1);
+        if (g_myra->filtered_apps[i] && g_myra->filtered_apps[i]->name) {
+             fb_draw_text(x, y + 45, g_myra->filtered_apps[i]->name, 0xFFFFFF, 1);
+        } else {
+             uart_puts("[myra] NULL app entry!\n");
+        }
     }
+    uart_puts("[myra] done drawing\n");
 }
 
 static void myra_task(void *arg) {

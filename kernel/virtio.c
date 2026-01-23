@@ -478,7 +478,7 @@ void virtio_gpu_flush(void) {
 
 
 int virtio_input_init(void) {
-    uart_puts("[virtio] searching for virtio-input devices...\n");
+    // uart_puts("[virtio] searching for virtio-input devices...\n");
     num_input_devs = 0;
 
     for (int i = 0; i < 32 && num_input_devs < MAX_INPUT_DEVICES; i++) {
@@ -614,7 +614,7 @@ int virtio_input_init(void) {
             #undef RI_INIT
         }
     }
-    uart_puts("[virtio] input init done, devs="); uart_put_hex(num_input_devs); uart_puts("\n");
+    // uart_puts("[virtio] input init done, devs="); uart_put_hex(num_input_devs); uart_puts("\n");
     return (num_input_devs > 0) ? 0 : -1;
 }
 

@@ -8,6 +8,7 @@
 #include "pty.h"
 #include <stddef.h>
 #include <stdint.h>
+#include "shell.h"
 
 /* forward prototype for external reference */
 void shell_main(void *arg);
@@ -64,6 +65,9 @@ static struct cmd_entry commands[] = {
     {"ps", cmd_ps},
     {NULL, NULL},
 };
+
+static struct pipeline_job *parse_pipeline(const char *line_in);
+static void run_pipeline_internal(struct pipeline_job *job);
 
 /* current working directory for the shell (no concurrency expected) */
 static char shell_cwd[256] = "/";
@@ -1053,4 +1057,54 @@ void shell_main(void *arg) {
     /* Exiting shell */
     int pid = task_current_id();
     if (pid > 0) task_set_fn_null(pid);
+}
+
+int shell_exec(const char *cmdline, char *out, size_t out_cap) {
+    if (!cmdline || !out || out_cap == 0) return -1;
+    /* uart_puts("[shell_exec] running: "); uart_puts(cmdline); uart_puts("\n"); */
+    struct pipeline_job *job = parse_pipeline(cmdline);
+    if (!job) {
+        uart_puts("[shell_exec] PARSE FAILED\n");
+        return -1;
+    }
+    
+    // Clear any potential PTY since we are capturing
+    job->pty = NULL;
+    
+    // Run the pipeline
+    shell_sigint = 0;
+    char *inbuf = NULL;
+    size_t in_len = 0;
+    char *bufs[MAX_CMDS];
+    for (int i = 0; i < job->ncmds; ++i) bufs[i] = NULL;
+
+    for (int i = 0; i < job->ncmds; ++i) {
+        bufs[i] = kmalloc(BUF_SIZE);
+        if (!bufs[i]) break;
+        int wrote = exec_command_argv(job->argvs[i], job->argcs[i], inbuf, in_len, bufs[i], BUF_SIZE);
+        if (inbuf) kfree(inbuf);
+        inbuf = bufs[i];
+        in_len = (wrote > 0) ? (size_t)wrote : 0;
+        if (shell_sigint) break;
+        yield();
+    }
+
+    int total_output = 0;
+    if (inbuf) {
+        // Here's the capture: Copy inbuf to 'out' instead of printing
+        total_output = (int)in_len;
+        if (total_output > (int)out_cap) total_output = (int)out_cap;
+        memcpy(out, inbuf, total_output);
+        if (total_output < (int)out_cap) out[total_output] = '\0';
+    }
+
+    // Cleanup job
+    for (int i = 0; i < job->ncmds; ++i) if (bufs[i]) kfree(bufs[i]);
+    for (int i = 0; i < job->ncmds; ++i) if (job->argvs[i]) kfree(job->argvs[i]);
+    for (int t = 0; t < job->token_count; ++t) if (job->tokens[t]) kfree(job->tokens[t]);
+    if (job->tokens) kfree(job->tokens);
+    if (job->out_file) kfree(job->out_file);
+    kfree(job);
+
+    return total_output;
 }

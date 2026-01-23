@@ -4,32 +4,83 @@
 #include <string.h>
 #include "uart.h"
 
-static void *free_list[PALLOC_MAX_PAGES];
-static size_t free_count = 0;
+static uint8_t *pool_start_addr = NULL;
 static size_t total_pages = 0;
+static uint8_t page_bitmap[PALLOC_MAX_PAGES / 8]; // 1 bit per page 0=free, 1=used
 
 void palloc_init(void *pool_start, size_t pages) {
     if (pages > PALLOC_MAX_PAGES)
         pages = PALLOC_MAX_PAGES;
+    
+    pool_start_addr = (uint8_t *)pool_start;
     total_pages = pages;
-    free_count = pages;
-    for (size_t i = 0; i < pages; ++i) {
-        free_list[i] = (void *)((uintptr_t)pool_start + i * PAGE_SIZE);
+    
+    // All free initially
+    memset(page_bitmap, 0, sizeof(page_bitmap));
+    
+    uart_puts("[palloc] init pages="); uart_put_hex(pages); 
+    uart_puts(" bitmap_size="); uart_put_hex(sizeof(page_bitmap)); uart_puts("\n");
+}
+
+static int is_free(size_t idx) {
+    return !(page_bitmap[idx / 8] & (1 << (idx % 8)));
+}
+
+static void mark_used(size_t idx) {
+    page_bitmap[idx / 8] |= (1 << (idx % 8));
+}
+
+static void mark_free(size_t idx) {
+    page_bitmap[idx / 8] &= ~(1 << (idx % 8));
+}
+
+void *palloc_alloc_contig(size_t count) {
+    if (count == 0 || count > total_pages) return NULL;
+    
+    size_t consecutive = 0;
+    size_t start_idx = 0;
+    
+    for (size_t i = 0; i < total_pages; i++) {
+        if (is_free(i)) {
+            if (consecutive == 0) start_idx = i;
+            consecutive++;
+            if (consecutive == count) {
+                // Found enough!
+                for (size_t j = 0; j < count; j++) {
+                    mark_used(start_idx + j);
+                }
+                void *ptr = (void *)(pool_start_addr + start_idx * PAGE_SIZE);
+                memset(ptr, 0, count * PAGE_SIZE);
+                return ptr;
+            }
+        } else {
+            consecutive = 0;
+        }
     }
+    
+    uart_puts("[palloc] OOM! requested="); uart_put_hex(count); uart_puts("\n");
+    return NULL;
 }
 
 void *palloc_alloc(void) {
-    if (free_count == 0)
-        return NULL;
-    void *page = free_list[--free_count];
-    // zero page
-    memset(page, 0, PAGE_SIZE);
-    uart_puts("[palloc] alloc: "); uart_put_hex((uint32_t)(uintptr_t)page); uart_puts("\n");
-    return page;
+    return palloc_alloc_contig(1);
 }
 
-void palloc_free(void *page) {
-    if (free_count >= PALLOC_MAX_PAGES)
+void palloc_free(void *ptr, size_t count) {
+    if (!ptr || count == 0) return;
+    uintptr_t offset = (uintptr_t)ptr - (uintptr_t)pool_start_addr;
+    if (offset % PAGE_SIZE != 0) {
+        uart_puts("[palloc] free invalid align\n");
         return;
-    free_list[free_count++] = page;
+    }
+    
+    size_t idx = offset / PAGE_SIZE;
+    if (idx + count > total_pages) {
+         uart_puts("[palloc] free out of bounds\n");
+         return;
+    }
+    
+    for (size_t i = 0; i < count; i++) {
+        mark_free(idx + i);
+    }
 }

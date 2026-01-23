@@ -125,7 +125,9 @@ void init_main(void *arg) {
     init_puts("[init] starting services...\n");
 
     /* create some default service units */
-    init_ramfs_mkdir("/etc/systemd/system");
+    init_ramfs_mkdir("/etc/");
+    init_ramfs_mkdir("/var/");
+    init_ramfs_mkdir("/etc/systemd/system/");
     
     /* info.service: reports system info to a log file periodically */
     const char *info_unit = 

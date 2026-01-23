@@ -24,6 +24,7 @@ typedef void (*task_fn)(void *arg);
 
 int scheduler_init(void);
 int task_create(task_fn fn, void *arg, const char *name);
+int task_create_with_stack(task_fn fn, void *arg, const char *name, size_t stack_kb);
 void schedule(void);
 void yield(void);
 int task_kill(int id);
@@ -46,5 +47,8 @@ int task_list(int *out, int max);
 /* collect per-task stats: ids, run_counts, start_ticks. Returns number of tasks.
 	If total_runs_out is non-NULL, sets it to total run count across all tasks. */
 int task_stats(int *ids_out, int *run_counts_out, int *start_ticks_out, int *runnable_out, char *names_out, int max, int *total_runs_out);
+
+void scheduler_ret_from_fork_debug(void);
+void scheduler_switch_debug(uint64_t lr, uint64_t sp);
 
 #endif

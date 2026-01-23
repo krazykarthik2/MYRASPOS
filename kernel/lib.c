@@ -43,6 +43,22 @@ char *strncpy(char *dest, const char *src, size_t n) {
     return dest;
 }
 
+char *strcat(char *dest, const char *src) {
+    char *d = dest;
+    while (*d) d++;
+    while ((*d++ = *src++) != '\0');
+    return dest;
+}
+
+char *strrchr(const char *s, int c) {
+    char ch = (char)c;
+    const char *last = NULL;
+    for (; *s; ++s) {
+        if (*s == ch) last = s;
+    }
+    return (char *)last;
+}
+
 int strncmp(const char *a, const char *b, size_t n) {
     for (size_t i = 0; i < n; ++i) {
         unsigned char ca = (unsigned char)a[i];
