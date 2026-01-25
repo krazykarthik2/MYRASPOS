@@ -166,6 +166,10 @@ void init_main(void *arg) {
 
     init_puts("[init] starting shell...\n");
     init_start_shell();
+    
+    /* Sync files created during init to diskfs */
+    extern void diskfs_sync_from_ramfs(void);
+    diskfs_sync_from_ramfs();
 
     for (;;) {
         yield();

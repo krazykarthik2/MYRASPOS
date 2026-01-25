@@ -4,8 +4,8 @@
 #include <string.h>
 #include "uart.h"
 
-static uint8_t *pool_start_addr = NULL;
 static size_t total_pages = 0;
+static uint8_t *pool_start_addr = NULL;
 static uint8_t page_bitmap[PALLOC_MAX_PAGES / 8]; // 1 bit per page 0=free, 1=used
 
 void palloc_init(void *pool_start, size_t pages) {
@@ -18,8 +18,9 @@ void palloc_init(void *pool_start, size_t pages) {
     // All free initially
     memset(page_bitmap, 0, sizeof(page_bitmap));
     
-    uart_puts("[palloc] init pages="); uart_put_hex(pages); 
-    uart_puts(" bitmap_size="); uart_put_hex(sizeof(page_bitmap)); uart_puts("\n");
+    uart_puts("[palloc] pool_start="); uart_put_hex((uintptr_t)pool_start);
+    uart_puts(" pages="); uart_put_hex(pages); 
+    uart_puts(" max="); uart_put_hex(PALLOC_MAX_PAGES); uart_puts("\n");
 }
 
 static int is_free(size_t idx) {
@@ -35,7 +36,16 @@ static void mark_free(size_t idx) {
 }
 
 void *palloc_alloc_contig(size_t count) {
-    if (count == 0 || count > total_pages) return NULL;
+    if (total_pages == 0) {
+        uart_puts("[palloc] ERROR: allocation requested before init or pool empty!\n");
+        return NULL;
+    }
+    
+    if (count == 0 || count > total_pages) {
+        uart_puts("[palloc] ERROR: invalid count="); uart_put_hex((uint32_t)count);
+        uart_puts(" total_pages="); uart_put_hex((uint32_t)total_pages); uart_puts("\n");
+        return NULL;
+    }
     
     size_t consecutive = 0;
     size_t start_idx = 0;
@@ -58,7 +68,7 @@ void *palloc_alloc_contig(size_t count) {
         }
     }
     
-    uart_puts("[palloc] OOM! requested="); uart_put_hex(count); uart_puts("\n");
+    uart_puts("\n[palloc] CRITICAL: OUT OF MEMORY (CONTIG)! requested="); uart_put_hex((uint32_t)count); uart_puts(" pages\n");
     return NULL;
 }
 
@@ -84,3 +94,5 @@ void palloc_free(void *ptr, size_t count) {
         mark_free(idx + i);
     }
 }
+
+

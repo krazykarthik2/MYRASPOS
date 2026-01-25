@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #define PAGE_SIZE 4096
-#define PALLOC_MAX_PAGES 4096
+#define PALLOC_MAX_PAGES (256 * 1024) /* 1GB max */
 
 void palloc_init(void *pool_start, size_t pages);
 void *palloc_alloc(void); /* allocate 1 page */

@@ -33,6 +33,6 @@ SECTIONS
   } :data
 
   . = ALIGN(8);
-  . = . + 0x4000;
+  . = . + 0x10000;
   stack_top = .;
 }

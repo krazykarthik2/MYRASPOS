@@ -10,20 +10,39 @@
 #include "framebuffer.h"
 #include "virtio.h"
 #include "service.h"
+#include "mmu.h"
+#include "diskfs.h"
 
-/* Larger page pool for palloc (4MB) */
-static unsigned char palloc_pool[PAGE_SIZE * 1024] __attribute__((aligned(PAGE_SIZE)));
+/* Linker symbols */
+extern char stack_top[];
 
 /* forward declaration of init task in init.c */
 extern void init_main(void *arg);
 
 void kernel_main(void) {
-    /* basic subsystem init */
-    palloc_init(palloc_pool, 1024);
+    /* 1. Initialize memory subsystems FIRST (needed by MMU for page tables) */
+    uart_puts("[kernel] initializing memory subsystems...\n");
+    uintptr_t ram_end   = 0x60000000;
+    uintptr_t heap_base = 0x43000000; 
+    size_t heap_pages = (ram_end - heap_base) / PAGE_SIZE;
+
+    palloc_init((void *)heap_base, heap_pages);
     kmalloc_init();
+
+    /* 2. Enable MMU for consistent caching */
+    uart_puts("[kernel] enabling MMU...\n");
+    mmu_init();
+    
+    uart_puts("[kernel] initializing ramfs...\n");
     ramfs_init();
+    
+    uart_puts("[kernel] initializing diskfs...\n");
+    diskfs_init();
+    
+    uart_puts("[kernel] initializing services...\n");
     services_init();
-    // uart_puts("[kernel] booting...\n");
+    
+    uart_puts("[kernel] probing graphics...\n");
 
     /* Try to initialize virtio-gpu (preferred). If that fails, fall back
        to the fixed RAMFB address (for QEMU variants that expose it). */

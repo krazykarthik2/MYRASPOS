@@ -28,7 +28,6 @@
 - ~~add per-task ID~~ ✅ (already implemented)
 - add kernel ring buffer logger
 - ~~add panic stack trace~~ ✅ (basic backtrace exists)
-
 ---
 
 ## Syscalls / blocking
@@ -198,3 +197,21 @@
 - perform TLS handshake
 - wrap TCP socket with TLS
 - serve HTTPS response
+
+---
+
+## Memory Management
+0.
+- ✅ Implement virtual memory and paging
+- ✅ identity mapping for kernel and peripherals
+- ✅ page table setup (L0-L3)
+- ✅ enable MMU
+
+---
+
+## Disk Filesystem (DiskFS)
+
+- ✅ Implement virtio-blk driver
+- ✅ Create simple diskfs
+- ✅ Move all existing files to diskfs
+- ✅ provide persistence across reboots (simulated via virtio-blk)

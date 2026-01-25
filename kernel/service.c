@@ -149,10 +149,13 @@ static void service_task_fn(void *arg) {
 
 int services_init(void) {
     /* ensure directory exists */
+    uart_puts("[svc] creating /etc...\n");
     ramfs_mkdir("/etc");
+    uart_puts("[svc] creating systemd...\n");
     ramfs_mkdir("/etc/systemd");
     ramfs_mkdir("/etc/systemd/system");
     services = NULL;
+    uart_puts("[svc] services initialized.\n");
     return 0;
 }
 

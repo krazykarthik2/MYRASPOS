@@ -227,6 +227,9 @@ static void run_pipeline_internal(struct pipeline_job *job) {
         if (!bufs[i]) break;
         int wrote = exec_command_argv(job->argvs[i], job->argcs[i], inbuf, in_len, bufs[i], BUF_SIZE);
         if (inbuf) kfree(inbuf);
+        /* Mark previous bufs as NULL so we don't double-free in the final cleanup */
+        if (i > 0) bufs[i-1] = NULL; 
+
         inbuf = bufs[i];
         in_len = (wrote > 0) ? (size_t)wrote : 0;
         /* check for interrupt flag */
@@ -235,7 +238,7 @@ static void run_pipeline_internal(struct pipeline_job *job) {
     }
 
     /* final output handling */
-    if (inbuf) {
+    if (inbuf && !shell_sigint) {
         if (job->out_file) {
             /* ensure file exists (create if needed) */
             init_ramfs_create(job->out_file); /* ignore error if exists */
@@ -261,6 +264,7 @@ static void run_pipeline_internal(struct pipeline_job *job) {
         }
     }
 
+    /* Cleanup any remaining buffers (usually just the last one, or all if we broke early) */
     for (int i = 0; i < job->ncmds; ++i) if (bufs[i]) kfree(bufs[i]);
 }
 
@@ -1083,6 +1087,8 @@ int shell_exec(const char *cmdline, char *out, size_t out_cap) {
         if (!bufs[i]) break;
         int wrote = exec_command_argv(job->argvs[i], job->argcs[i], inbuf, in_len, bufs[i], BUF_SIZE);
         if (inbuf) kfree(inbuf);
+        if (i > 0) bufs[i-1] = NULL;
+
         inbuf = bufs[i];
         in_len = (wrote > 0) ? (size_t)wrote : 0;
         if (shell_sigint) break;
@@ -1090,7 +1096,7 @@ int shell_exec(const char *cmdline, char *out, size_t out_cap) {
     }
 
     int total_output = 0;
-    if (inbuf) {
+    if (inbuf && !shell_sigint) {
         // Here's the capture: Copy inbuf to 'out' instead of printing
         total_output = (int)in_len;
         if (total_output > (int)out_cap) total_output = (int)out_cap;

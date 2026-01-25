@@ -123,7 +123,7 @@ static void update_search(void) {
 
 static void myra_draw(struct window *win) {
     if (!g_myra) return;
-    uart_puts("[myra] drawing\n");
+    // uart_puts("[myra] drawing\n");
 
     /* Blink logic (simulated here for simplicity, or done in task and state updated) */
     /* Actually task updates visible state, we just draw */
@@ -132,26 +132,27 @@ static void myra_draw(struct window *win) {
     fb_draw_rect(win->x + win->w/2 - 100, win->y + 30, 200, 25, 0x333333);
     fb_draw_rect_outline(win->x + win->w/2 - 100, win->y + 30, 200, 25, 0xAAAAAA, 1);
     
-    uart_puts("[myra] drawn search bar\n");
+    // uart_puts("[myra] drawn search bar\n");
 
     /* Search Text */
     int text_x = win->x + win->w/2 - 95;
     int text_y = win->y + 35;
     if (g_myra->query_len > 0) {
         fb_draw_text(text_x, text_y, g_myra->search_query, 0xFFFFFF, 1);
-        uart_puts("[myra] drawn search text\n");
+        // uart_puts("[myra] drawn search text\n");
     } else {
         fb_draw_text(text_x, text_y, "Search...", 0x888888, 1);
-        uart_puts("[myra] drawn placeholder\n");
+        // uart_puts("[myra] drawn placeholder\n");
     }
 
     /* Grid layout 6x6 */
     int cell_w = win->w / 6;
     int cell_h = (win->h - 60) / 6;
 
-    uart_puts("[myra] drawing grid\n");
+    // uart_puts("[myra] drawing grid\n");
     for (int i = 0; i < g_myra->num_filtered; i++) {
-        uart_puts("[myra] item "); uart_put_hex(i); uart_puts("\n");
+        // uart_puts("[myra] item "); 
+        uart_put_hex(i); uart_puts("\n");
         int r = i / 6;
         int c = i % 6;
         int x = win->x + c * cell_w + 10;
@@ -165,14 +166,14 @@ static void myra_draw(struct window *win) {
         if (g_myra->filtered_apps[i] && g_myra->filtered_apps[i]->name) {
              fb_draw_text(x, y + 45, g_myra->filtered_apps[i]->name, 0xFFFFFF, 1);
         } else {
-             uart_puts("[myra] NULL app entry!\n");
+            //  uart_puts("[myra] NULL app entry!\n");
         }
     }
-    uart_puts("[myra] done drawing\n");
+    // uart_puts("[myra] done drawing\n");
 }
 
 static void myra_task(void *arg) {
-    uart_puts("[myra] task started\n");
+    // uart_puts("[myra] task started\n");
     (void)arg;
     int shift_state = 0;
     /* Initialize Blink */
