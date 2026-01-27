@@ -5,6 +5,7 @@
 
 void fb_init(void *addr, int width, int height, int stride_bytes);
 void fb_set_pixel(int x, int y, uint32_t color);
+uint32_t fb_get_pixel(int x, int y);
 void fb_draw_rect(int x, int y, int w, int h, uint32_t color);
 void fb_draw_rect_outline(int x, int y, int w, int h, uint32_t color, int thickness);
 void fb_draw_hline(int x1, int x2, int y, uint32_t color);

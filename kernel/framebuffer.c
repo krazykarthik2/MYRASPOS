@@ -110,6 +110,8 @@ void fb_init(void *addr, int width, int height, int stride_bytes) {
     fb_h = height;
     fb_stride = stride_bytes / 4;
     fb_fill(0x000000); /* Mandatory clear */
+    /* Draw a small white square as a probe */
+    for (int j=0; j<50; j++) for (int i=0; i<50; i++) fb[j*fb_stride + i] = 0xFFFFFF;
     fb_init_done = 1;
 }
 
@@ -119,24 +121,41 @@ void fb_get_res(int *w, int *h) { if (w) *w = fb_w; if (h) *h = fb_h; }
 void fb_fill(uint32_t color) {
     if (!fb) return;
     for (int y = 0; y < fb_h; ++y) {
-        volatile uint32_t *row = fb + (y * fb_stride);
-        for (int x = 0; x < fb_w; ++x) row[x] = color;
+        volatile uint32_t *p = fb + (y * fb_stride);
+        int n = fb_w;
+        while (n--) *p++ = color;
     }
     virtio_gpu_flush();
 }
 
 void fb_set_pixel(int x, int y, uint32_t color) {
     if (!fb) return;
-    if (x < 0 || x >= fb_w || y < 0 || y >= fb_h) return;
-    fb[y * fb_stride + x] = color;
+    if ((unsigned int)x < (unsigned int)fb_w && (unsigned int)y < (unsigned int)fb_h) {
+        fb[y * fb_stride + x] = color;
+    }
+}
+
+uint32_t fb_get_pixel(int x, int y) {
+    if (!fb) return 0;
+    if ((unsigned int)x < (unsigned int)fb_w && (unsigned int)y < (unsigned int)fb_h) {
+        return fb[y * fb_stride + x];
+    }
+    return 0;
 }
 
 void fb_draw_rect(int x, int y, int w, int h, uint32_t color) {
     if (!fb) return;
+    /* Clip to screen */
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > fb_w) w = fb_w - x;
+    if (y + h > fb_h) h = fb_h - y;
+    if (w <= 0 || h <= 0) return;
+
     for (int i = 0; i < h; i++) {
-        for (int j = 0; j < w; j++) {
-            fb_set_pixel(x + j, y + i, color);
-        }
+        volatile uint32_t *p = fb + ((y + i) * fb_stride) + x;
+        int n = w;
+        while (n--) *p++ = color;
     }
 }
 
@@ -162,6 +181,13 @@ void fb_draw_vline(int x, int y1, int y2, uint32_t color) {
     for (int y = y1; y <= y2; y++) fb_set_pixel(x, y, color);
 }
 
+#define GLYPH_CACHE_SIZE 256
+static uint32_t glyph_cache[GLYPH_CACHE_SIZE][5 * 7];
+static char glyph_cache_chars[GLYPH_CACHE_SIZE];
+static uint32_t glyph_cache_colors[GLYPH_CACHE_SIZE];
+static int glyph_cache_next = 0;
+#include "irq.h"
+
 void fb_draw_text(int x, int y, const char *s, uint32_t color, int scale) {
     if (!fb || !s) return;
     int cur_x = x;
@@ -169,8 +195,47 @@ void fb_draw_text(int x, int y, const char *s, uint32_t color, int scale) {
     int spacing = 1;
     while (*s) {
         char c = *s++;
-        const uint8_t *g = get_glyph(c);
-        fb_draw_scaled_glyph(g, cur_x, y, scale, color);
+        
+        /* Fast Cache Lookup (IRQ Protected) */
+        unsigned long flags = irq_save();
+        int cache_idx = -1;
+        for (int i = 0; i < GLYPH_CACHE_SIZE; i++) {
+            if (glyph_cache_chars[i] == (char)c && glyph_cache_colors[i] == color) {
+                cache_idx = i;
+                break;
+            }
+        }
+        
+        if (cache_idx == -1) {
+            /* Populate Cache */
+            cache_idx = glyph_cache_next;
+            glyph_cache_chars[cache_idx] = (char)c;
+            glyph_cache_colors[cache_idx] = color;
+            const uint8_t *g = get_glyph(c);
+            for (int r = 0; r < 7; r++) {
+                uint8_t bits = g[r];
+                for (int col = 0; col < 5; col++) {
+                    int bit = (bits >> (4 - col)) & 1;
+                    glyph_cache[cache_idx][r * 5 + col] = bit ? color : 0;
+                }
+            }
+            glyph_cache_next = (glyph_cache_next + 1) % GLYPH_CACHE_SIZE;
+        }
+        irq_restore(flags);
+        
+        /* Draw from Cache */
+        uint32_t *pixels = glyph_cache[cache_idx];
+        for (int r = 0; r < 7; r++) {
+            for (int col = 0; col < 5; col++) {
+                uint32_t p_color = pixels[r * 5 + col];
+                if (p_color != 0) {
+                    int sx = cur_x + col * scale;
+                    int sy = y + r * scale;
+                    fb_draw_rect(sx, sy, scale, scale, p_color);
+                }
+            }
+        }
+        
         cur_x += (glyph_w * scale) + (spacing * scale);
     }
 }

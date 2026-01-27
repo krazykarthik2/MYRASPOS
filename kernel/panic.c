@@ -2,6 +2,7 @@
 #include "uart.h"
 #include <stdint.h>
 #include <stddef.h>
+#include "sched.h"
 
 static void print_hex(uintptr_t x) {
     char buf[2 + sizeof(uintptr_t) * 2 + 1];
@@ -11,6 +12,7 @@ static void print_hex(uintptr_t x) {
         int v = (x >> (i * 4)) & 0xF;
         buf[pos++] = (v < 10) ? ('0' + v) : ('A' + (v - 10));
     }
+    
     buf[pos] = '\0';
     uart_puts(buf);
 }
@@ -32,10 +34,23 @@ void panic_with_trace(const char *msg) {
     }
 
     uart_puts("System halted.\n");
+    
+    uart_puts("Task: ");
+    int tid = task_current_id();
+    print_hex((uintptr_t)tid);
+    uart_puts("\n");
+
     while (1) ;
 }
 
+extern void irq_entry_c(void);
+
 void exception_c_handler(int type, uint64_t esr, uint64_t elr) {
+    if (type == 1 || type == 5 || type == 9 || type == 13) {
+        irq_entry_c();
+        return;
+    }
+
     uart_puts("\n[PANIC] EXCEPTION OCCURRED!\n");
     uart_puts("Type: "); print_hex((uintptr_t)type); uart_puts("\n");
     uart_puts("ESR:  "); print_hex((uintptr_t)esr);  uart_puts("\n");

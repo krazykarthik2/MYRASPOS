@@ -14,14 +14,40 @@ struct ram_node {
 
 static struct ram_node *root = NULL;
 
+#define PATH_CACHE_SIZE 32
+struct path_cache_entry {
+    char name[RAMFS_NAME_MAX];
+    struct ram_node *node;
+};
+static struct path_cache_entry path_cache[PATH_CACHE_SIZE];
+static int path_cache_next = 0;
+
+static void invalidate_cache(void) {
+    for (int i = 0; i < PATH_CACHE_SIZE; i++) path_cache[i].name[0] = '\0';
+}
+
 int ramfs_init(void) {
     root = NULL;
     return 0;
 }
 
 static struct ram_node *find_node(const char *name) {
+    /* Check cache */
+    for (int i = 0; i < PATH_CACHE_SIZE; i++) {
+        if (path_cache[i].name[0] != '\0' && strcmp(path_cache[i].name, name) == 0) {
+            return path_cache[i].node;
+        }
+    }
+
+    /* Fallback to linear search */
     for (struct ram_node *n = root; n; n = n->next) {
-        if (strncmp(n->name, name, RAMFS_NAME_MAX) == 0) return n;
+        if (strncmp(n->name, name, RAMFS_NAME_MAX) == 0) {
+            /* Update cache */
+            strncpy(path_cache[path_cache_next].name, name, RAMFS_NAME_MAX - 1);
+            path_cache[path_cache_next].node = n;
+            path_cache_next = (path_cache_next + 1) % PATH_CACHE_SIZE;
+            return n;
+        }
     }
     return NULL;
 }
@@ -219,6 +245,7 @@ int ramfs_remove_recursive(const char *name) {
             kfree(cur);
             removed = 1;
             cur = next;
+            invalidate_cache();
             continue;
         }
         prev = &cur->next;

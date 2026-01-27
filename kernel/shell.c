@@ -203,18 +203,14 @@ struct pipeline_job {
 
 static int exec_command_argv(char **argv, int argc, const char *in, size_t in_len, char *out, size_t out_cap) {
     if (argc == 0) return 0;
-    uart_puts("[exec_argv] cmd="); uart_puts(argv[0]); uart_puts("\n");
     cmd_fn_t fn;
     if (builtin_lookup(argv[0], &fn) == 0) {
-        uart_puts("[exec_argv] found builtin\n");
         return fn(argc, argv, in, in_len, out, out_cap);
     }
     prog_fn_t pfn;
     if (program_lookup(argv[0], &pfn) == 0) {
-        uart_puts("[exec_argv] found program\n");
         return pfn(argc, argv, in, in_len, out, out_cap);
     }
-    uart_puts("[exec_argv] unknown command\n");
     const char *msg = "unknown command\n";
     size_t m = strlen(msg);
     if (m > out_cap) m = out_cap;
@@ -230,14 +226,11 @@ static void run_pipeline_internal(struct pipeline_job *job) {
     char *bufs[MAX_CMDS];
     for (int i = 0; i < job->ncmds; ++i) bufs[i] = NULL;
 
-    uart_puts("[run_pipeline] ncmds="); uart_put_hex(job->ncmds); uart_puts("\n");
     for (int i = 0; i < job->ncmds; ++i) {
-        uart_puts("[run_pipeline] exec cmd "); uart_put_hex(i); uart_puts("\n");
         bufs[i] = kmalloc(BUF_SIZE);
         if (!bufs[i]) break;
         int wrote = exec_command_argv(job->argvs[i], job->argcs[i], inbuf, in_len, bufs[i], BUF_SIZE);
-        uart_puts("[run_pipeline] exec returned\n");
-        if (inbuf) { uart_puts("[run_pipeline] freeing inbuf\n"); kfree(inbuf); }
+        if (inbuf) { kfree(inbuf); }
         /* Mark previous bufs as NULL so we don't double-free in the final cleanup */
         if (i > 0) bufs[i-1] = NULL; 
 
@@ -276,9 +269,7 @@ static void run_pipeline_internal(struct pipeline_job *job) {
     }
 
     /* Cleanup any remaining buffers (usually just the last one, or all if we broke early) */
-    uart_puts("[run_pipeline] cleanup buffers\n");
     for (int i = 0; i < job->ncmds; ++i) if (bufs[i]) kfree(bufs[i]);
-    uart_puts("[run_pipeline] done\n");
 }
 
 static void pipeline_runner(void *arg) {
@@ -997,7 +988,6 @@ void shell_main(void *arg) {
     struct pty *_pty = (struct pty *)arg;
     
     if (_pty) {
-        uart_puts("[shell] GUI SHELL PROBE START\n");
         // *(volatile int*)0 = 0; // Trigger Data Abort
         // uart_puts("[shell] PROBE SURVIVED (This should not happen)\n");
     }
@@ -1017,7 +1007,6 @@ void shell_main(void *arg) {
     #define LINE_BUF_SIZE 2048
     char *line = kmalloc(LINE_BUF_SIZE);
     if (!line) {
-        uart_puts("[shell] FATAL: failed to allocate line buffer\n");
         return; 
     }
     for (;;) {
@@ -1042,23 +1031,18 @@ void shell_main(void *arg) {
         } else {
             shell_puts(pbuf);
         }
-        uart_puts("[shell] prompt shown\n");
 
         int len = 0;
         if (_pty) {
             /* Blocking line read handled by PTY driver */
             len = pty_getline(_pty, line, LINE_BUF_SIZE);
-            uart_puts("[shell] line: '"); uart_puts(line); uart_puts("'\n");
         } else {
             len = shell_read_line(line, LINE_BUF_SIZE);
         }
 
         if (len <= 0) { yield(); continue; }
 
-        uart_puts("[shell] processing line: '"); uart_puts(line); uart_puts("'\n");
-
         struct pipeline_job *job = parse_pipeline(line);
-        uart_puts("[shell] parsed pipeline: "); uart_put_hex((uintptr_t)job); uart_puts("\n");
         if (!job) { 
             if (_pty) { const char *e="error parsing\n"; for(const char*s=e;*s;++s) pty_write_out(_pty,*s); }
             else shell_puts("error parsing\n"); 
@@ -1089,18 +1073,14 @@ void shell_main(void *arg) {
             shell_sigint = 0;
             run_pipeline_internal(job);
             
-            uart_puts("[shell] cleaning up job\n");
             /* free job (same as pipeline_runner cleanup) */
             for (int i = 0; i < job->ncmds; ++i) {
                 if (job->argvs[i]) kfree(job->argvs[i]);
             }
-            uart_puts("[shell] freed argvs\n");
             for (int t = 0; t < job->token_count; ++t) if (job->tokens[t]) kfree(job->tokens[t]);
-            uart_puts("[shell] freed tokens\n");
             if (job->tokens) kfree(job->tokens);
             if (job->out_file) kfree(job->out_file);
             kfree(job);
-            uart_puts("[shell] job freed\n");
         }
     }
     /* Exiting shell */

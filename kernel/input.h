@@ -23,4 +23,7 @@ int input_pop_event(struct input_event *ev);
 int input_pop_key_event(struct input_event *ev);
 int input_pop_mouse_event(struct input_event *ev);
 
+void input_init(int screen_w, int screen_h);
+void input_get_mouse_state(int *x, int *y, int *btn);
+
 #endif

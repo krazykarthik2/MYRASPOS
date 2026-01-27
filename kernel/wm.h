@@ -38,6 +38,7 @@ struct window {
     struct wm_input_event input_queue[WM_INPUT_QUEUE_SIZE];
     int input_head, input_tail;
     volatile int input_lock;
+    int is_dirty;
 };
 
 void wm_init(void);

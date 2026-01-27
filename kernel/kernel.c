@@ -95,6 +95,9 @@ void kernel_main(void) {
     /* create init task which will run a shell - needs large stack for bootup (virtio, services, etc.) */
     task_create_with_stack(init_main, NULL, "init", 64);
 
+    uart_puts("[kernel] enabling interrupts...\n");
+    __asm__ volatile("msr daifclr, #2");
+
     /* run scheduler loop cooperatively */
     while (1) {
         schedule();

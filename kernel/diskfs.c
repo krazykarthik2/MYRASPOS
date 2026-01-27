@@ -20,6 +20,35 @@ static struct disk_entry dir_cache[MAX_DISK_FILES];
 static int num_files = 0;
 static uint32_t next_free_sector = DATA_START_SECTOR;
 
+/* Path lookup cache */
+#define DISK_PATH_CACHE_SIZE 16
+struct disk_path_cache {
+    char name[64];
+    int index;
+};
+static struct disk_path_cache d_cache[DISK_PATH_CACHE_SIZE];
+static int d_cache_next = 0;
+
+static int find_file_index(const char *name) {
+    /* Check cache */
+    for (int i = 0; i < DISK_PATH_CACHE_SIZE; i++) {
+        if (d_cache[i].name[0] != '\0' && strcmp(d_cache[i].name, name) == 0) {
+            return d_cache[i].index;
+        }
+    }
+    /* Linear search */
+    for (int i = 0; i < MAX_DISK_FILES; i++) {
+        if (dir_cache[i].name[0] != '\0' && strcmp(dir_cache[i].name, name) == 0) {
+            /* Update cache */
+            strncpy(d_cache[d_cache_next].name, name, 63);
+            d_cache[d_cache_next].index = i;
+            d_cache_next = (d_cache_next + 1) % DISK_PATH_CACHE_SIZE;
+            return i;
+        }
+    }
+    return -1;
+}
+
 void diskfs_init(void) {
     if (virtio_blk_init() < 0) {
         uart_puts("[diskfs] virtio-blk not found, diskfs disabled.\n");
@@ -57,9 +86,7 @@ int diskfs_create(const char *name) {
     if (num_files >= MAX_DISK_FILES) return -1;
     
     // Check if exists
-    for (int i = 0; i < MAX_DISK_FILES; i++) {
-        if (strcmp(dir_cache[i].name, name) == 0) return 0; // Already exists
-    }
+    if (find_file_index(name) >= 0) return 0;
 
     // Find free slot
     for (int i = 0; i < MAX_DISK_FILES; i++) {
@@ -76,72 +103,70 @@ int diskfs_create(const char *name) {
 }
 
 int diskfs_write(const char *name, const void *buf, size_t len, size_t offset) {
-    for (int i = 0; i < MAX_DISK_FILES; i++) {
-        if (strcmp(dir_cache[i].name, name) == 0) {
-            /* For simplicity, we overwrite from start if offset is 0, 
-               and we don't support sparse or expanding files well yet.
-               In this simple diskfs, we just write to consecutive sectors. */
-            
-            uint32_t start_s = dir_cache[i].start_sector + (offset / SECTOR_SIZE);
-            uint32_t n_sectors = (len + SECTOR_SIZE - 1) / SECTOR_SIZE;
-            
-            uint8_t sector_buf[SECTOR_SIZE];
-            const uint8_t *src = (const uint8_t *)buf;
-            size_t remaining = len;
-            uint32_t curr_s = start_s;
+    int i = find_file_index(name);
+    if (i >= 0) {
+        /* For simplicity, we overwrite from start if offset is 0, 
+           and we don't support sparse or expanding files well yet.
+           In this simple diskfs, we just write to consecutive sectors. */
+        
+        uint32_t start_s = dir_cache[i].start_sector + (offset / SECTOR_SIZE);
+        uint32_t n_sectors = (len + SECTOR_SIZE - 1) / SECTOR_SIZE;
+        
+        uint8_t sector_buf[SECTOR_SIZE];
+        const uint8_t *src = (const uint8_t *)buf;
+        size_t remaining = len;
+        uint32_t curr_s = start_s;
 
-            while (remaining > 0) {
-                size_t to_write = (remaining < SECTOR_SIZE) ? remaining : SECTOR_SIZE;
-                if (to_write < SECTOR_SIZE) {
-                    // Partial sector write
-                    virtio_blk_rw(curr_s, sector_buf, 0); // Read first
-                    memcpy(sector_buf, src, to_write);
-                    virtio_blk_rw(curr_s, sector_buf, 1); // Write back
-                } else {
-                    virtio_blk_rw(curr_s, (void *)src, 1);
-                }
-                src += to_write;
-                remaining -= to_write;
-                curr_s++;
+        while (remaining > 0) {
+            size_t to_write = (remaining < SECTOR_SIZE) ? remaining : SECTOR_SIZE;
+            if (to_write < SECTOR_SIZE) {
+                // Partial sector write
+                virtio_blk_rw(curr_s, sector_buf, 0); // Read first
+                memcpy(sector_buf, src, to_write);
+                virtio_blk_rw(curr_s, sector_buf, 1); // Write back
+            } else {
+                virtio_blk_rw(curr_s, (void *)src, 1);
             }
-
-            if (offset + len > dir_cache[i].size) {
-                dir_cache[i].size = offset + len;
-                uint32_t end = dir_cache[i].start_sector + (dir_cache[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
-                if (end > next_free_sector) next_free_sector = end;
-                save_dir();
-            }
-            return len;
+            src += to_write;
+            remaining -= to_write;
+            curr_s++;
         }
+
+        if (offset + len > dir_cache[i].size) {
+            dir_cache[i].size = offset + len;
+            uint32_t end = dir_cache[i].start_sector + (dir_cache[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
+            if (end > next_free_sector) next_free_sector = end;
+            save_dir();
+        }
+        return len;
     }
     return -1;
 }
 
 int diskfs_read(const char *name, void *buf, size_t len, size_t offset) {
-    for (int i = 0; i < MAX_DISK_FILES; i++) {
-        if (strcmp(dir_cache[i].name, name) == 0) {
-            if (offset >= dir_cache[i].size) return 0;
-            if (offset + len > dir_cache[i].size) len = dir_cache[i].size - offset;
+    int i = find_file_index(name);
+    if (i >= 0) {
+        if (offset >= dir_cache[i].size) return 0;
+        if (offset + len > dir_cache[i].size) len = dir_cache[i].size - offset;
 
-            uint32_t start_s = dir_cache[i].start_sector + (offset / SECTOR_SIZE);
-            uint8_t sector_buf[SECTOR_SIZE];
-            uint8_t *dst = (uint8_t *)buf;
-            size_t remaining = len;
-            uint32_t curr_s = start_s;
-            size_t skip = offset % SECTOR_SIZE;
+        uint32_t start_s = dir_cache[i].start_sector + (offset / SECTOR_SIZE);
+        uint8_t sector_buf[SECTOR_SIZE];
+        uint8_t *dst = (uint8_t *)buf;
+        size_t remaining = len;
+        uint32_t curr_s = start_s;
+        size_t skip = offset % SECTOR_SIZE;
 
-            while (remaining > 0) {
-                virtio_blk_rw(curr_s, sector_buf, 0);
-                size_t to_copy = SECTOR_SIZE - skip;
-                if (to_copy > remaining) to_copy = remaining;
-                memcpy(dst, sector_buf + skip, to_copy);
-                dst += to_copy;
-                remaining -= to_copy;
-                curr_s++;
-                skip = 0;
-            }
-            return len;
+        while (remaining > 0) {
+            virtio_blk_rw(curr_s, sector_buf, 0);
+            size_t to_copy = SECTOR_SIZE - skip;
+            if (to_copy > remaining) to_copy = remaining;
+            memcpy(dst, sector_buf + skip, to_copy);
+            dst += to_copy;
+            remaining -= to_copy;
+            curr_s++;
+            skip = 0;
         }
+        return len;
     }
     return -1;
 }

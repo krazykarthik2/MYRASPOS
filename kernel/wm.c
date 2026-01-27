@@ -10,15 +10,15 @@
 #include "input.h"
 #include "timer.h"
 #include "myra_app.h"
+#include "cursor.h"
 
 static struct window *window_list = NULL;
 static struct window *focused_window = NULL;
 static int next_win_id = 1;
+static int desktop_dirty = 1;
 static int screen_w = 0, screen_h = 0;
 static const int taskbar_h = 32;
 
-static int mouse_x = 0, mouse_y = 0;
-static int mouse_btn = 0;
 static int shift_state = 0;
 static int caps_lock = 0;
 
@@ -59,13 +59,12 @@ static void wm_unlock_window(struct window *win) {
     win->input_lock = 0;
 }
 
-/* Scale mouse from 0..32767 to screen res */
-static int scale_mouse(int val, int max_res) {
-    return (val * max_res) / 32767;
-}
 
 void wm_init(void) {
     fb_get_res(&screen_w, &screen_h);
+    input_init(screen_w, screen_h);
+    desktop_dirty = 1; // Mark desktop dirty on init
+    task_wake_event(WM_EVENT_ID); // Trigger initial draw
 }
 
 
@@ -108,7 +107,9 @@ struct window* wm_create_window(const char *name, int x, int y, int w, int h, vo
     win->on_close = NULL;
     win->input_head = win->input_tail = 0;
     win->input_lock = 0;
+    win->input_lock = 0;
     win->tty = NULL;
+    win->is_dirty = 1;
     
     win->input_lock = 0;
     win->tty = NULL;
@@ -147,9 +148,7 @@ void wm_close_window(struct window *win) {
 }
 
 void wm_get_mouse_state(int *x, int *y, int *btn) {
-    if (x) *x = mouse_x;
-    if (y) *y = mouse_y;
-    if (btn) *btn = mouse_btn;
+    input_get_mouse_state(x, y, btn);
 }
 
 int wm_is_focused(struct window *win) {
@@ -191,13 +190,22 @@ static void wm_handle_clicks(int is_press) {
     static struct window *drag_win = NULL;
     static int drag_off_x = 0, drag_off_y = 0;
 
-    if (!mouse_btn) {
+    int mx, my, mbtn;
+    input_get_mouse_state(&mx, &my, &mbtn);
+
+    if (!mbtn) {
         drag_win = NULL;
     }
     
-    if (mouse_btn && drag_win) {
-        drag_win->x = mouse_x - drag_off_x;
-        drag_win->y = mouse_y - drag_off_y;
+    if (mbtn && drag_win) {
+        int old_x = drag_win->x;
+        int old_y = drag_win->y;
+        drag_win->x = mx - drag_off_x;
+        drag_win->y = my - drag_off_y;
+        if (drag_win->x != old_x || drag_win->y != old_y) {
+            drag_win->is_dirty = 1;
+            task_wake_event(WM_EVENT_ID);
+        }
     }
 
     if (!is_press) return;
@@ -206,9 +214,9 @@ static void wm_handle_clicks(int is_press) {
     wm_list_lock();
 
     // 1. Check Taskbar first (top-most layer)
-    if (mouse_y >= screen_h - taskbar_h) {
+    if (my >= screen_h - taskbar_h) {
         // MYRA Button: 5...65
-        if (mouse_x >= 5 && mouse_x <= 65) {
+        if (mx >= 5 && mx <= 65) {
             myra_app_open();
             return;
         }
@@ -216,7 +224,7 @@ static void wm_handle_clicks(int is_press) {
         int tx = 75;
         struct window *tw = window_list;
         while (tw) {
-            if (mouse_x >= tx && mouse_x <= tx + 80) {
+            if (mx >= tx && mx <= tx + 80) {
                 if (tw->state == WM_STATE_MINIMIZED) wm_set_state(tw, WM_STATE_NORMAL);
                 else {
                     focused_window = tw;
@@ -235,38 +243,39 @@ static void wm_handle_clicks(int is_press) {
     while (w) {
         if (w->state != WM_STATE_MINIMIZED) {
             // Check if click is within window bounds
-            if (mouse_x >= w->x && mouse_x <= w->x + w->w &&
-                mouse_y >= w->y && mouse_y <= w->y + w->h) {
+            if (mx >= w->x && mx <= w->x + w->w &&
+                my >= w->y && my <= w->y + w->h) {
                 
                 // Focus and bring to front
                 if (focused_window != w) {
-                    uart_puts("[wm] Focus change: "); uart_puts(w->name); uart_puts("\n");
                     focused_window = w;
                 }
                 wm_bring_to_front(w);
 
                 // Check for buttons in title bar (only if not fullscreen)
-                if (w->state != WM_STATE_FULLSCREEN && mouse_y < w->y + 22) {
+                if (w->state != WM_STATE_FULLSCREEN && my < w->y + 22) {
                     // Close button (X)
-                    if (mouse_x >= w->x + w->w - 22 && mouse_x <= w->x + w->w - 2) {
+                    if (mx >= w->x + w->w - 22 && mx <= w->x + w->w - 2) {
                         wm_close_window(w);
                         return;
                     }
                     // Maximize button ([])
-                    if (mouse_x >= w->x + w->w - 42 && mouse_x <= w->x + w->w - 24) {
+                    if (mx >= w->x + w->w - 42 && mx <= w->x + w->w - 24) {
                         if (w->state == WM_STATE_NORMAL) wm_set_state(w, WM_STATE_MAXIMIZED_TASKBAR);
                         else wm_set_state(w, WM_STATE_NORMAL);
+                        w->is_dirty = 1;
+                        task_wake_event(WM_EVENT_ID);
                         return;
                     }
                     // Minimize button (_)
-                    if (mouse_x >= w->x + w->w - 62 && mouse_x <= w->x + w->w - 44) {
+                    if (mx >= w->x + w->w - 62 && mx <= w->x + w->w - 44) {
                         wm_set_state(w, WM_STATE_MINIMIZED);
                         return;
                     }
                     /* Clicked title bar but not a button -> Start Drag */
                     drag_win = w;
-                    drag_off_x = mouse_x - w->x;
-                    drag_off_y = mouse_y - w->y;
+                    drag_off_x = mx - w->x;
+                    drag_off_y = my - w->y;
                 }
                 return; // Handled top-most window
             }
@@ -303,26 +312,6 @@ static void draw_taskbar(void) {
     wm_list_unlock();
 }
 
-static void draw_cursor(void) {
-    /* Better arrow cursor */
-    uint32_t c = 0xFFFFFF;     /* white */
-    uint32_t o = 0x000000;     /* black outline */
-
-    /* Outline */
-    for(int i=0; i<12; i++) fb_set_pixel(mouse_x+0, mouse_y+i, o);
-    for(int i=0; i<8; i++)  fb_set_pixel(mouse_x+i, mouse_y+i, o);
-    for(int i=0; i<5; i++)  fb_set_pixel(mouse_x+i, mouse_y+8, o);
-    fb_set_pixel(mouse_x+5, mouse_y+9, o);
-    fb_set_pixel(mouse_x+6, mouse_y+10, o);
-    fb_set_pixel(mouse_x+7, mouse_y+11, o);
-    fb_set_pixel(mouse_x+1, mouse_y+12, o);
-
-    /* Fill */
-    for(int i=1; i<11; i++) fb_set_pixel(mouse_x+1, mouse_y+i, c);
-    for(int i=2; i<7; i++)  fb_set_pixel(mouse_x+2, mouse_y+i, c);
-    for(int i=3; i<6; i++)  fb_set_pixel(mouse_x+3, mouse_y+i, c);
-    fb_set_pixel(mouse_x+4, mouse_y+4, c);
-}
 
 void wm_set_state(struct window *win, wm_state_t state) {
     if (!win) return;
@@ -361,37 +350,18 @@ void wm_set_state(struct window *win, wm_state_t state) {
 void wm_compose(void) {
     if (!fb_is_init()) return;
 
-    /* Poll input before composing */
-    virtio_input_poll();
+    /* 1. ALWAYS pop all mouse events to keep the queue healthy and detect clicks.
+     * Note: coordinate updates are now handled in the input driver. */
     struct input_event ev;
     while (input_pop_mouse_event(&ev)) {
-        /*
-        if (ev.type == INPUT_TYPE_REL || ev.type == INPUT_TYPE_ABS || ev.type == INPUT_TYPE_MOUSE_BTN) {
-             // uart_puts("[wm] mouse type="); uart_put_hex(ev.type); 
-             // uart_puts(" code="); uart_put_hex(ev.code); 
-             // uart_puts(" val="); uart_put_hex(ev.value); uart_puts("\n");
-        }
-        */
-
-        if (ev.type == INPUT_TYPE_ABS) {
-            if (ev.code == 0) mouse_x = scale_mouse(ev.value, screen_w);
-            if (ev.code == 1) mouse_y = scale_mouse(ev.value, screen_h);
-        } else if (ev.type == INPUT_TYPE_REL) {
-            if (ev.code == 0) mouse_x += ev.value;
-            if (ev.code == 1) mouse_y += ev.value;
-        } else if (ev.type == INPUT_TYPE_MOUSE_BTN) {
-            if (ev.code == 0x110) {
-                int was_pressed = (ev.value && !mouse_btn);
-                mouse_btn = ev.value;
-                if (was_pressed) wm_handle_clicks(1);
+        if (ev.type == INPUT_TYPE_MOUSE_BTN) {
+            if (ev.code == 0x110 && ev.value) { // Left Button Pressed
+                wm_handle_clicks(1);
             }
         }
     }
     
-    // Maintain dragging and non-press logic
-    wm_handle_clicks(0);
-    
-    /* Distribute keyboard events */
+    /* 2. Process keyboard events and distribute to focus */
     struct input_event kev;
     while (input_pop_key_event(&kev)) {
         if (focused_window) {
@@ -402,7 +372,8 @@ void wm_compose(void) {
                 focused_window->input_queue[focused_window->input_head].code = kev.code;
                 focused_window->input_queue[focused_window->input_head].value = kev.value;
                 focused_window->input_head = next_head;
-
+                focused_window->is_dirty = 1;
+                
                 /* TTY Streaming: if window has a tty, push ASCII directly */
                 if (focused_window->tty && kev.type == INPUT_TYPE_KEY) {
                     if (kev.code == 0x2A || kev.code == 0x36) {
@@ -413,40 +384,47 @@ void wm_compose(void) {
                         if (kev.code < sizeof(scan_to_ascii)) {
                             char base = scan_to_ascii[kev.code];
                             char shifted = scan_to_ascii_shift[kev.code];
-                            char ch = 0;
+                            char ch = (shift_state ? shifted : base);
                             if (caps_lock && base >= 'a' && base <= 'z') {
-                                ch = shift_state ? base : shifted;
-                            } else {
-                                ch = shift_state ? shifted : base;
+                                ch = (shift_state ? base : shifted);
                             }
-                            if (ch != 0) {
-                                pty_write_in(focused_window->tty, ch);
-                            }
+                            if (ch != 0) pty_write_in(focused_window->tty, ch);
                         }
                     }
                 }
             }
             wm_unlock_window(focused_window);
-        } else {
-            if (kev.value == 1) { // Log key press attempts when no focus
-                uart_puts("[wm] DROPPED key code="); uart_put_hex(kev.code); 
-                uart_puts(" (no focused window)\n");
-            }
         }
     }
 
-    if (mouse_x < 0) mouse_x = 0;
-    if (mouse_y < 0) mouse_y = 0;
-    if (mouse_x >= screen_w) mouse_x = screen_w - 1;
-    if (mouse_y >= screen_h) mouse_y = screen_h - 1;
+    /* 3. Handle dragging / non-press UI state */
+    wm_handle_clicks(0);
 
-    /* 1. Desktop background (Steel Blue) */
+    /* 4. Check if we actually need to redraw the screen buffer.
+     * We don't skip the event loop above, but we skip the heavy draw below. */
+    int any_dirty = desktop_dirty;
+    struct window *w_ptr = window_list;
+    while (w_ptr) {
+        if (w_ptr->is_dirty) { any_dirty = 1; break; }
+        w_ptr = w_ptr->next;
+    }
+    
+    if (!any_dirty) return;
+    
+    desktop_dirty = 0;
+    struct window *w_reset = window_list;
+    while (w_reset) {
+        w_reset->is_dirty = 0;
+        w_reset = w_reset->next;
+    }
+
+    /* 5. Perform the Draw */
+    /* Desktop background (Steel Blue) */
     fb_draw_rect(0, 0, screen_w, screen_h, 0x4682B4);
 
-    /* 2. Draw windows back to front (Tail -> Head) */
+    /* Draw windows back to front */
     struct window *stack[16];
     int count = 0;
-    
     wm_list_lock();
     struct window *curr = window_list;
     while (curr && count < 16) {
@@ -455,21 +433,15 @@ void wm_compose(void) {
     }
     wm_list_unlock();
     
-    // Draw from end of stack (bottom) to beginning (top)
     for (int i = count - 1; i >= 0; i--) {
         struct window *w = stack[i];
         if (w->state != WM_STATE_MINIMIZED) {
-            /* Border (Yellow if focused) */
             uint32_t border_color = (w == focused_window) ? 0xFFFF00 : 0x444488;
             fb_draw_rect_outline(w->x, w->y, w->w, w->h, border_color, 2);
-            /* Title bar (only if not fullscreen) */
             if (w->state != WM_STATE_FULLSCREEN) {
                 uint32_t title_color = (w == focused_window) ? 0x00AA00 : 0x2222BB;
                 fb_draw_rect(w->x + 2, w->y + 2, w->w - 4, 20, title_color);
                 fb_draw_text(w->x + 8, w->y + 4, w->name, 0xFFFFFF, 2);
-                
-                /* Draw Buttons */
-                /* Close (X) */
                 fb_draw_rect(w->x + w->w - 22, w->y + 2, 20, 20, 0xFF0000);
                 fb_draw_text(w->x + w->w - 16, w->y + 4, "X", 0xFFFFFF, 2);
                 /* Maximize ([]) */
@@ -479,46 +451,34 @@ void wm_compose(void) {
                 fb_draw_rect(w->x + w->w - 62, w->y + 2, 20, 20, 0xAAAA00);
                 fb_draw_hline(w->x + w->w - 58, w->x + w->w - 46, w->y + 16, 0xFFFFFF);
             }
-            /* Background */
             int content_y = (w->state == WM_STATE_FULLSCREEN) ? w->y + 2 : w->y + 22;
             int content_h = (w->state == WM_STATE_FULLSCREEN) ? w->h - 4 : w->h - 24;
             fb_draw_rect(w->x + 2, content_y, w->w - 4, content_h, 0x000000);
-            /* Content */
             if (w->draw_content) w->draw_content(w);
         }
     }
-    // uart_puts("[wm] window loop done\n");
 
-    /* 3. Taskbar */
     draw_taskbar();
-    // uart_puts("[wm] taskbar done\n");
-
-    /* 4. Cursor */
-    draw_cursor();
-    // uart_puts("[wm] cursor done\n");
-
-    /* Flush to GPU */
     virtio_gpu_flush();
-    // uart_puts("[wm] compose done\n");
 }
 
 static void wm_task(void *arg) {
     (void)arg;
+    fb_get_res(&screen_w, &screen_h);
+    input_init(screen_w, screen_h);
+    
+    /* Initial draw */
+    desktop_dirty = 1;
+    wm_compose();
+    
     while (1) {
+        task_wait_event(WM_EVENT_ID);
         wm_compose();
-        // uart_puts("[wm] returned from compose\n");
-        /* ~30 FPS */
-        timer_sleep_ms(33);
-        // uart_puts("[wm] woke from sleep\n");
-        
-        /* Heartbeat every ~30 frames (approx 1 sec) */
-        static int frames = 0;
-        if (++frames % 30 == 0) {
-            uart_puts(".");
-        }
     }
 }
 
 void wm_start_task(void) {
-    task_create(wm_task, NULL, "wm_compositor");
+    cursor_init();
+    task_create_with_stack(wm_task, NULL, "wm_compositor", 16);
+    task_wake_event(WM_EVENT_ID);
 }

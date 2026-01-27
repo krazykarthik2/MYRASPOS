@@ -42,14 +42,8 @@ cpu_switch_to:
 ret_from_fork:
     /* Enable IRQs for new task */
     msr daifclr, #2
-    /* Debug: Call a C function to print we are here */
-    str x30, [sp, #-16]!  /* Save x30 not really needed as we don't return but good habit */
-    /* Only safe if we save registers we care about (x19, x20) */
-    /* C clobbers x0-x18. Callee-saved x19-x29 preserved. */
-    /* So x19 (fn) and x20 (arg) are safe! */
     
-    bl scheduler_ret_from_fork_debug
-    
+    /* Call task function directly - no debug overhead */
     mov x0, x20    /* Argument to x0 */
     blr x19        /* Call task function */
     

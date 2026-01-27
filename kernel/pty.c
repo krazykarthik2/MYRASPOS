@@ -102,7 +102,6 @@ int pty_getline(struct pty *p, char *buf, int max_len) {
         }
         
         char c = pty_read_in(p);
-        uart_puts("[pty] getline got c="); uart_put_hex(c); uart_puts("\n");
         
         /* Handle line editing */
         if (c == '\r' || c == '\n') {

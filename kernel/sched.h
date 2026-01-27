@@ -42,6 +42,10 @@ void scheduler_tick_advance(uint32_t delta_ms);
 uint32_t scheduler_get_tick(void);
 /* request a preempt from IRQ handler */
 void scheduler_request_preempt(void);
+/* block current task until an event is signaled */
+void task_wait_event(void *event_id);
+/* wake all tasks waiting on an event */
+void task_wake_event(void *event_id);
 /* collect task ids into out array, return count (max entries limited by 'max') */
 int task_list(int *out, int max);
 /* collect per-task stats: ids, run_counts, start_ticks. Returns number of tasks.
@@ -50,5 +54,10 @@ int task_stats(int *ids_out, int *run_counts_out, int *start_ticks_out, int *run
 
 void scheduler_ret_from_fork_debug(void);
 void scheduler_switch_debug(uint64_t lr, uint64_t sp);
+
+/* Constant event IDs for robust waking across files. 
+ * Using small integers cast to pointers to avoid string literal address mismatches. */
+#define WM_EVENT_ID    ((void*)0x100)
+#define MOUSE_EVENT_ID ((void*)0x200)
 
 #endif

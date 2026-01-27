@@ -16,6 +16,12 @@ extern void task_exit(int code);
 static void kill_children_of(int parent_id);
 int task_kill(int id);
 
+enum block_reason {
+    BLOCK_NONE = 0,
+    BLOCK_TIMER,
+    BLOCK_EVENT
+};
+
 struct task {
     int id;
     task_fn fn;
@@ -23,6 +29,7 @@ struct task {
     int run_count;
     int start_tick;
     uint32_t wake_tick;      /* when to wake (monotonic ms) */
+    enum block_reason block_type;
     task_fn saved_fn;        /* saved function when blocked */
     char name[16];
     int is_running;
@@ -45,6 +52,14 @@ static int next_task_id = 1;
 static int scheduler_tick = 0;
 static int total_run_counts = 0;
 static volatile int preempt_requested = 0;
+
+/* Event waiting system */
+struct event_waiter {
+    int task_id;
+    void *event_id;
+    struct event_waiter *next;
+};
+static struct event_waiter *wait_list = NULL;
 
 void scheduler_request_preempt(void) {
     preempt_requested = 1;
@@ -108,13 +123,15 @@ int task_create_with_stack(task_fn fn, void *arg, const char *name, size_t stack
     #define STACK_GUARD_SIZE 4096
     *(uint64_t *)((uint64_t)t->stack + STACK_GUARD_SIZE) = 0xDEADBEEFCAFEBABE;
 
-    /* DEBUG Trace Task Entry */
+    /* DEBUG Trace Task Entry - DISABLED for performance */
+    /*
     uart_puts("[sched] DBG: "); uart_puts(name);
     uart_puts(" fn="); uart_put_hex((uint32_t)(uintptr_t)fn);
     uart_puts(" ctx.x19="); uart_put_hex((uint32_t)t->context.x19);
     uart_puts(" ctx.x30="); uart_put_hex((uint32_t)t->context.x30);
     uart_puts(" total_alloc="); uart_put_hex(total_alloc);
     uart_puts("\n");
+    */
     
     if (name) {
         strncpy(t->name, name, sizeof(t->name) - 1);
@@ -173,11 +190,13 @@ int task_create_with_stack(task_fn fn, void *arg, const char *name, size_t stack
         while(1);
     }
 
+    /*
     uart_puts("[sched] created task "); uart_puts(t->name); 
     uart_puts(" id="); uart_put_hex(t->id);
     uart_puts(" addr="); uart_put_hex((uint32_t)(uintptr_t)t);
     uart_puts(" stack_kb="); uart_put_hex(stack_kb);
     uart_puts(" parent="); uart_put_hex(task_current_id()); uart_puts("\n");
+    */
     return t->id;
 }
 
@@ -239,10 +258,26 @@ static void reap_zombies(void) {
                 uart_puts("\n");
                 */
                 
+                /* Capture ID before freeing structure */
+                int zombie_id = t->id;
+                
                 if (to_free->stack) kfree(to_free->stack);
                 kfree(to_free);
                 
                 found = 1;
+
+                /* Also remove from wait_list if present */
+                struct event_waiter **wp = &wait_list;
+                while (*wp) {
+                    if ((*wp)->task_id == zombie_id) {
+                        struct event_waiter *tmp = *wp;
+                        *wp = (*wp)->next;
+                        kfree(tmp);
+                    } else {
+                        wp = &(*wp)->next;
+                    }
+                }
+
                 break; /* Restart scan since list changed */
             }
             prev_t = t;
@@ -276,8 +311,9 @@ void schedule(void) {
 
     struct task *prev = task_cur;
     struct task *next;
-
-    // uart_puts("[sched] entered. prev="); uart_puts(prev->name); uart_puts("\n");
+    
+    /* CRITICAL: Disable IRQs during task selection and switch to prevent reentrancy */
+    unsigned long sched_flags = irq_save();
 
     /* Safety: if task_cur is NULL or not in list, treat as boot task */
     if (!prev || (prev != &boot_task && ((uintptr_t)prev & 7) != 0)) {
@@ -295,18 +331,36 @@ void schedule(void) {
     /* skip blocked tasks (fn == NULL) */
     struct task *start = next;
     int attempts = 0;
-    while (next && (next->fn == NULL) && attempts < 1000) {
-        next = next->next;
-        attempts++;
-        if (next == start) break; /* wrapped around */
+    int runnable_count = 0;
+    struct task *last_runnable = NULL;
+
+    /* Count runnable tasks in one pass if possible, or just find the next one */
+    struct task *v = task_head;
+    do {
+        if (v->fn != NULL) {
+            runnable_count++;
+            last_runnable = v;
+        }
+        v = v->next;
+    } while (v != task_head);
+
+    if (runnable_count == 0) {
+        irq_restore(sched_flags);
+        return;
     }
     
-    // if (next && next->run_count == 0 && next->id != 0) {
-    //    uart_puts("[sched] picked next="); uart_puts(next->name); uart_puts("\n");
-    // }
+    /* Optimization: B. Scheduler optimizations - Avoid context switch when only one runnable task */
+    if (runnable_count == 1) {
+        if (prev == last_runnable) return;
+        next = last_runnable;
+    } else {
+        while (next && (next->fn == NULL) && attempts < 1000) {
+            next = next->next;
+            attempts++;
+            if (next == start) break; /* wrapped around */
+        }
+    }
 
-    /* If no runable task found, and we are not boot task, just return (continue running current) */
-    /* If we ARE boot task and no runnable task, we must loop/wait (but for now just return/busyloop in main) */
     if (!next || next->fn == NULL) return;
 
     /* Don't switch if target is same as current */
@@ -322,10 +376,11 @@ void schedule(void) {
     }
     task_cur = next;
     
-    /* Surgical debug: only log first contact with Files Explorer */
+    /*
     if (next->id == 7 && next->run_count == 1) {
         uart_puts("[sched] STARTING FILES EXPLORER TASK\n");
     }
+    */
 
     prev->is_running = 0;
     next->is_running = 1;
@@ -362,6 +417,19 @@ void schedule(void) {
 
     if (next->context.x30 == 0) {
         uart_puts("[sched] ERROR: x30 is 0!\n");
+        while(1);
+    }
+    
+    /* Detect if x30 was corrupted with a task ID pattern */
+    uint64_t lr = next->context.x30;
+    /* Valid kernel code is in range 0x40800000 - 0x41000000 */
+    if (lr < 0x40800000ULL || lr > 0x41000000ULL) {
+        uart_puts("[sched] ERROR: x30 out of kernel range! x30=");
+        uart_put_hex((uint32_t)(lr >> 32));
+        uart_put_hex((uint32_t)lr);
+        uart_puts(" task="); uart_puts(next->name);
+        uart_puts(" id="); uart_put_hex(next->id);
+        uart_puts("\n");
         while(1);
     }
     
@@ -425,9 +493,12 @@ void schedule(void) {
     }
 
     /* Mask IRQs to ensure atomic switch (crucial for stack safety) */
-    __asm__ volatile("msr daifset, #2");
+    // IRQs already disabled via sched_flags
+    
     cpu_switch_to(&prev->context, &next->context);
-    __asm__ volatile("msr daifclr, #2");
+    
+    /* Restore IRQs after returning from context switch */
+    irq_restore(sched_flags);
 }
 
 void yield(void) {
@@ -564,13 +635,69 @@ int task_set_parent(int id, int parent_id) {
 }
 
 void task_block_current_until(uint32_t wake_tick) {
-    
     if (!task_cur) return;
     /* save current function pointer and mark blocked */
     task_cur->saved_fn = task_cur->fn;
     task_cur->fn = NULL;
     task_cur->wake_tick = wake_tick;
+    task_cur->block_type = BLOCK_TIMER;
     schedule();
+}
+
+void task_wait_event(void *event_id) {
+    if (!task_cur) return;
+    
+    struct event_waiter *w = kmalloc(sizeof(*w));
+    if (!w) return;
+    w->task_id = task_cur->id;
+    w->event_id = event_id;
+    
+    unsigned long flags = irq_save();
+    w->next = wait_list;
+    wait_list = w;
+    
+    task_cur->saved_fn = task_cur->fn;
+    task_cur->fn = NULL;
+    task_cur->block_type = BLOCK_EVENT;
+    irq_restore(flags);
+    
+    schedule();
+}
+
+void task_wake_event(void *event_id) {
+    unsigned long flags = irq_save();
+    struct event_waiter **prev = &wait_list;
+    struct event_waiter *curr = wait_list;
+    
+    while (curr) {
+        if (curr->event_id == event_id) {
+            /* Wake the task */
+            struct task *t = task_head;
+            if (t) {
+                do {
+                    if (t->id == curr->task_id) {
+                        if (t->fn == NULL && t->saved_fn != NULL) {
+                            t->fn = t->saved_fn;
+                            t->saved_fn = NULL;
+                            t->block_type = BLOCK_NONE;
+                        }
+                        break;
+                    }
+                    t = t->next;
+                } while (t != task_head);
+            }
+            
+            /* Remove waiter */
+            struct event_waiter *to_free = curr;
+            *prev = curr->next;
+            curr = curr->next;
+            kfree(to_free);
+        } else {
+            prev = &curr->next;
+            curr = curr->next;
+        }
+    }
+    irq_restore(flags);
 }
 
 void scheduler_tick_advance(uint32_t delta_ms) {
@@ -584,15 +711,14 @@ void scheduler_tick_advance(uint32_t delta_ms) {
         if (((uintptr_t)t & 7) != 0) {
             uart_puts("[sched] PANIC: Corrupted task list in tick! t=");
             uart_put_hex((uint32_t)(uintptr_t)t);
-            uart_puts(" head=");
-            uart_put_hex((uint32_t)(uintptr_t)task_head);
             uart_puts("\n");
             while(1);
         }
 
-        if (t->fn == NULL && t->saved_fn != NULL && (int)t->wake_tick <= scheduler_tick) {
+        if (t->fn == NULL && t->saved_fn != NULL && t->block_type == BLOCK_TIMER && (int)t->wake_tick <= scheduler_tick) {
             t->fn = t->saved_fn;
             t->saved_fn = NULL;
+            t->block_type = BLOCK_NONE;
         }
         t = t->next;
     } while (t && t != task_head);
