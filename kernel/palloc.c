@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include "irq.h"
 #include "uart.h"
 
 static size_t total_pages = 0;
@@ -50,6 +51,8 @@ void *palloc_alloc_contig(size_t count) {
     size_t consecutive = 0;
     size_t start_idx = 0;
     
+    unsigned long flags = irq_save();
+    
     for (size_t i = 0; i < total_pages; i++) {
         if (is_free(i)) {
             if (consecutive == 0) start_idx = i;
@@ -61,6 +64,7 @@ void *palloc_alloc_contig(size_t count) {
                 }
                 void *ptr = (void *)(pool_start_addr + start_idx * PAGE_SIZE);
                 memset(ptr, 0, count * PAGE_SIZE);
+                irq_restore(flags);
                 return ptr;
             }
         } else {
@@ -68,7 +72,9 @@ void *palloc_alloc_contig(size_t count) {
         }
     }
     
+    
     uart_puts("\n[palloc] CRITICAL: OUT OF MEMORY (CONTIG)! requested="); uart_put_hex((uint32_t)count); uart_puts(" pages\n");
+    irq_restore(flags);
     return NULL;
 }
 
@@ -90,9 +96,20 @@ void palloc_free(void *ptr, size_t count) {
          return;
     }
     
+    unsigned long flags = irq_save();
+    
     for (size_t i = 0; i < count; i++) {
         mark_free(idx + i);
     }
+    irq_restore(flags);
 }
 
 
+
+size_t palloc_get_free_pages(void) {
+    size_t free_count = 0;
+    for (size_t i = 0; i < total_pages; i++) {
+        if (is_free(i)) free_count++;
+    }
+    return free_count;
+}

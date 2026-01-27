@@ -66,60 +66,65 @@ static void term_render_fn(struct window *win) {
     }
 }
 
+
+
 static void term_update_task(void *arg) {
     (void)arg;
+    struct terminal_app *my_term = g_term;
+    
     while (1) {
         if (!g_term) break;
-
-        /* If shell died, close terminal window (if not already closed) */
-        if (g_term->shell_pid > 0 && !task_exists(g_term->shell_pid)) {
-            struct window *w = g_term->win;
-            g_term = NULL; /* Signal loop exit */
-            wm_close_window(w);
-            break;
-        }
-
-        /* Pull from PTY out-buffer (from shell) and put on term grid */
-        while (g_term && pty_has_out(g_term->pty)) {
-            char c = pty_read_out(g_term->pty);
-            /* Trace Terminal receiving data from Shell */
-            uart_puts("[term] got char: "); uart_put_hex(c); uart_puts("\n");
-            
-            if (c == '\n') {
-                g_term->cursor_x = 0;
-                g_term->cursor_y++;
-            } else if (c == '\r') {
-                g_term->cursor_x = 0;
-            } else if (c == '\b') {
-                if (g_term->cursor_x > 0) g_term->cursor_x--;
-                g_term->grid[g_term->cursor_y][g_term->cursor_x] = ' ';
-            } else {
-                if (g_term->cursor_x < TERM_COLS && g_term->cursor_y < TERM_ROWS) {
-                    g_term->grid[g_term->cursor_y][g_term->cursor_x] = c;
-                    g_term->cursor_x++;
-                }
-            }
-            if (g_term->cursor_y >= TERM_ROWS) {
-                /* Scroll */
-                memmove(g_term->grid[0], g_term->grid[1], TERM_COLS * (TERM_ROWS - 1));
-                memset(g_term->grid[TERM_ROWS - 1], ' ', TERM_COLS);
-                g_term->cursor_y = TERM_ROWS - 1;
-            }
-            /* Character processed, force cursor visible immediately for responsiveness */
-            g_term->cursor_visible = 1;
-            g_term->last_blink = timer_get_ms();
-        }
         
+        /* Use local var to avoid race if g_term cleared mid-loop */
+        struct terminal_app *t = g_term;
+        if (!t) break;
+
+        /* Check shell death */
+        if (t->shell_pid > 0 && !task_exists(t->shell_pid)) {
+             struct window *w = t->win;
+             g_term = NULL;
+             wm_close_window(w);
+             break;
+        }
+
+        int count = 0;
+        while (g_term && pty_has_out(t->pty)) {
+             char c = pty_read_out(t->pty);
+             // ... logic using 't' ...
+             if (c == '\n') { t->cursor_x = 0; t->cursor_y++; }
+             else if (c == '\r') { t->cursor_x = 0; }
+             else if (c == '\b') { 
+                 if (t->cursor_x > 0) t->cursor_x--; 
+                 t->grid[t->cursor_y][t->cursor_x] = ' '; 
+             } else {
+                 if (t->cursor_x < TERM_COLS && t->cursor_y < TERM_ROWS) {
+                     t->grid[t->cursor_y][t->cursor_x] = c;
+                     t->cursor_x++;
+                 }
+             }
+             if (t->cursor_y >= TERM_ROWS) {
+                 memmove(t->grid[0], t->grid[1], TERM_COLS * (TERM_ROWS - 1));
+                 memset(t->grid[TERM_ROWS - 1], ' ', TERM_COLS);
+                 t->cursor_y = TERM_ROWS - 1;
+             }
+             t->cursor_visible = 1;
+             t->last_blink = timer_get_ms();
+
+             if (++count > 64) { count = 0; yield(); }
+             
+             /* Re-check global before continuing inner loop? 
+                If g_term becomes NULL, we should stop writing to it? 
+                But 't' is still valid memory until WE free it. 
+                Use 't' is safe. */
+        }
         yield();
     }
-    /* Thread exits */
-    struct terminal_app *to_free = g_term;
-    g_term = NULL;
-    if (to_free) {
-        // Double check shell is dead
-        if (to_free->shell_pid > 0 && task_exists(to_free->shell_pid)) task_kill(to_free->shell_pid);
-        pty_free(to_free->pty);
-        kfree(to_free);
+    
+    /* Cleanup */
+    if (my_term) {
+        if (my_term->shell_pid > 0 && task_exists(my_term->shell_pid)) task_kill(my_term->shell_pid);
+        pty_free(my_term->pty);
+        kfree(my_term);
     }
     task_set_fn_null(task_current_id());
 }

@@ -20,4 +20,7 @@ int pty_has_out(struct pty *p);
 int pty_has_in(struct pty *p);
 void pty_free(struct pty *p);
 
+/* Blocking line read with echo and editing (Canonical mode simulation) */
+int pty_getline(struct pty *p, char *buf, int max_len);
+
 #endif

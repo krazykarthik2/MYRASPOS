@@ -394,7 +394,6 @@ void wm_compose(void) {
     /* Distribute keyboard events */
     struct input_event kev;
     while (input_pop_key_event(&kev)) {
-        // uart_puts("[wm] popped key event\n");
         if (focused_window) {
             wm_lock_window(focused_window);
             int next_head = (focused_window->input_head + 1) % WM_INPUT_QUEUE_SIZE;
@@ -403,15 +402,6 @@ void wm_compose(void) {
                 focused_window->input_queue[focused_window->input_head].code = kev.code;
                 focused_window->input_queue[focused_window->input_head].value = kev.value;
                 focused_window->input_head = next_head;
-                
-                /* UART Diagnostic: Event distributed */
-                if (kev.value >= 1) { // press or repeat
-                    /*
-                    uart_puts("[wm] dist code="); uart_put_hex(kev.code);
-                    uart_puts(" val="); uart_put_hex(kev.value);
-                    uart_puts(" to '"); uart_puts(focused_window->name); uart_puts("'\n");
-                    */
-                }
 
                 /* TTY Streaming: if window has a tty, push ASCII directly */
                 if (focused_window->tty && kev.type == INPUT_TYPE_KEY) {
@@ -421,34 +411,15 @@ void wm_compose(void) {
                         caps_lock = !caps_lock;
                     } else if (kev.value >= 1) {
                         if (kev.code < sizeof(scan_to_ascii)) {
-                            char ch = 0;
-                            /* Simple logic: Shift XOR CapsLock for letters */
-                            
-                            /* Check if letter (q..p, a..l, z..m) - rough ranges or just check result */
-                            /* Actually, better to just pick map. 
-                               If CapsLock is ON, we want Uppercase for letters, but NOT for numbers.
-                               This requires knowing if it IS a letter. 
-                               Let's stick to Shift for now, and add CapsLock if simple.
-                            */
-                            
-                            /* Better: Use scan_to_ascii (lower) types. 
-                               If CapsLock is ON and ch is a-z, subtract 32. 
-                            */
                             char base = scan_to_ascii[kev.code];
                             char shifted = scan_to_ascii_shift[kev.code];
-                            
+                            char ch = 0;
                             if (caps_lock && base >= 'a' && base <= 'z') {
-                                /* CapsLock active on letter: Invert Shift effect? 
-                                   No, CapsLock forces Upper. Shift+Caps = Lower. */
-                                if (shift_state) ch = base; // Shift+Caps = lower
-                                else ch = shifted;          // Caps = upper
+                                ch = shift_state ? base : shifted;
                             } else {
-                                /* Not a letter or no CapsLock */
                                 ch = shift_state ? shifted : base;
                             }
-
                             if (ch != 0) {
-                                // uart_puts("[wm] PTY write char: "); uart_put_hex(ch); uart_puts("\n");
                                 pty_write_in(focused_window->tty, ch);
                             }
                         }
@@ -457,9 +428,9 @@ void wm_compose(void) {
             }
             wm_unlock_window(focused_window);
         } else {
-            /* No focus - drop or log */
-            if (kev.value >= 1) {
-                uart_puts("[wm] WARN: key dropped, no focus. code="); uart_put_hex(kev.code); uart_puts("\n");
+            if (kev.value == 1) { // Log key press attempts when no focus
+                uart_puts("[wm] DROPPED key code="); uart_put_hex(kev.code); 
+                uart_puts(" (no focused window)\n");
             }
         }
     }

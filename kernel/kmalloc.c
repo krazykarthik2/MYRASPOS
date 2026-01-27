@@ -2,6 +2,7 @@
 #include "palloc.h"
 #include <stdint.h>
 #include <stddef.h>
+#include "irq.h"
 #include "uart.h"
 
 /* 
@@ -62,6 +63,8 @@ void *kmalloc(size_t size) {
     }
     
     // Small allocation
+    unsigned long flags = irq_save();
+    
     struct km_header **prev = &free_list;
     struct km_header *cur = free_list;
     int limit = 10000; // Cycle detector
@@ -83,6 +86,7 @@ void *kmalloc(size_t size) {
                  *prev = cur->next;
             }
             cur->is_large = 0;
+            irq_restore(flags);
             return (void *)(cur + 1);
         }
         prev = &cur->next;
@@ -91,6 +95,7 @@ void *kmalloc(size_t size) {
     
     if (limit <= 0) {
         uart_puts("[kmalloc] FATAL: Free list cycle detected!\n");
+        irq_restore(flags);
         return NULL;
     }
     
@@ -113,6 +118,8 @@ void *kmalloc(size_t size) {
                  *prev = cur->next;
             }
             cur->is_large = 0;
+            cur->is_large = 0;
+            irq_restore(flags);
             return (void *)(cur + 1);
         }
         prev = &cur->next;
@@ -120,6 +127,7 @@ void *kmalloc(size_t size) {
     }
     
     uart_puts("[kmalloc] failed to allocate "); uart_put_hex((uint32_t)size); uart_puts(" bytes\n");
+    irq_restore(flags);
     return NULL;
 }
 
@@ -133,6 +141,8 @@ void kfree(void *ptr) {
     }
 
     /* Insert into address-ordered free list */
+    unsigned long flags = irq_save();
+    
     struct km_header **prev = &free_list;
     struct km_header *cur = free_list;
     
@@ -143,6 +153,7 @@ void kfree(void *ptr) {
     
     if (cur == h) {
         uart_puts("[kmalloc] WARNING: Double-free detected at "); uart_put_hex((uint32_t)(uintptr_t)ptr); uart_puts("\n");
+        irq_restore(flags);
         return;
     }
 
@@ -157,11 +168,6 @@ void kfree(void *ptr) {
     }
 
     /* Coalesce with PREVIOUS block */
-    // Note: *prev is 'h', but finding the block before it requires traversing
-    // We can simplify by checking if the block before h (if any) can merge with h.
-    // Since we just set *prev = h, the block before is the one whose 'next' pointed to cur.
-    // Let's re-traverse or use a cleaner approach.
-    // Simpler: find the actual head of the list and traverse to find h's predecessor.
     struct km_header *p = free_list;
     if (p != h) {
         while (p && p->next != h) p = p->next;
@@ -170,4 +176,5 @@ void kfree(void *ptr) {
             p->next = h->next;
         }
     }
+    irq_restore(flags);
 }

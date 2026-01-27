@@ -1,5 +1,6 @@
 #include "uart.h"
 #include "init.h"
+#include "sched.h"
 #include "kmalloc.h"
 #include "lib.h"
 #include "sched.h"
@@ -8,6 +9,7 @@
 #include "pty.h"
 #include <stddef.h>
 #include <stdint.h>
+#include "palloc.h"
 #include "shell.h"
 
 /* forward prototype for external reference */
@@ -37,6 +39,7 @@ static int cmd_systemctl(int argc, char **argv, const char *in, size_t in_len, c
 static int cmd_cd(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
 static int cmd_pwd(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
 static int cmd_exit(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
+static int cmd_free(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap);
 
 /* forward helpers */
 static char *abs_path_alloc(const char *p);
@@ -63,6 +66,7 @@ static struct cmd_entry commands[] = {
     {"ramfs-import", cmd_ramfs_import},
     {"systemctl", cmd_systemctl},
     {"ps", cmd_ps},
+    {"free", cmd_free},
     {NULL, NULL},
 };
 
@@ -199,14 +203,18 @@ struct pipeline_job {
 
 static int exec_command_argv(char **argv, int argc, const char *in, size_t in_len, char *out, size_t out_cap) {
     if (argc == 0) return 0;
+    uart_puts("[exec_argv] cmd="); uart_puts(argv[0]); uart_puts("\n");
     cmd_fn_t fn;
     if (builtin_lookup(argv[0], &fn) == 0) {
+        uart_puts("[exec_argv] found builtin\n");
         return fn(argc, argv, in, in_len, out, out_cap);
     }
     prog_fn_t pfn;
     if (program_lookup(argv[0], &pfn) == 0) {
+        uart_puts("[exec_argv] found program\n");
         return pfn(argc, argv, in, in_len, out, out_cap);
     }
+    uart_puts("[exec_argv] unknown command\n");
     const char *msg = "unknown command\n";
     size_t m = strlen(msg);
     if (m > out_cap) m = out_cap;
@@ -222,11 +230,14 @@ static void run_pipeline_internal(struct pipeline_job *job) {
     char *bufs[MAX_CMDS];
     for (int i = 0; i < job->ncmds; ++i) bufs[i] = NULL;
 
+    uart_puts("[run_pipeline] ncmds="); uart_put_hex(job->ncmds); uart_puts("\n");
     for (int i = 0; i < job->ncmds; ++i) {
+        uart_puts("[run_pipeline] exec cmd "); uart_put_hex(i); uart_puts("\n");
         bufs[i] = kmalloc(BUF_SIZE);
         if (!bufs[i]) break;
         int wrote = exec_command_argv(job->argvs[i], job->argcs[i], inbuf, in_len, bufs[i], BUF_SIZE);
-        if (inbuf) kfree(inbuf);
+        uart_puts("[run_pipeline] exec returned\n");
+        if (inbuf) { uart_puts("[run_pipeline] freeing inbuf\n"); kfree(inbuf); }
         /* Mark previous bufs as NULL so we don't double-free in the final cleanup */
         if (i > 0) bufs[i-1] = NULL; 
 
@@ -265,7 +276,9 @@ static void run_pipeline_internal(struct pipeline_job *job) {
     }
 
     /* Cleanup any remaining buffers (usually just the last one, or all if we broke early) */
+    uart_puts("[run_pipeline] cleanup buffers\n");
     for (int i = 0; i < job->ncmds; ++i) if (bufs[i]) kfree(bufs[i]);
+    uart_puts("[run_pipeline] done\n");
 }
 
 static void pipeline_runner(void *arg) {
@@ -334,13 +347,18 @@ static struct pipeline_job *parse_pipeline(const char *line_in) {
                 tok[di++] = buf[j];
             }
             tok[di] = '\0';
-            tokens[tcount++] = tok;
+            if (tcount < 64) tokens[tcount++] = tok;
+            else kfree(tok); /* discard token if too many */
             if (i < L && buf[i] == q) ++i; /* skip closing quote */
         } else if (c == '|' || c == '&' || c == '>') {
             if (c == '>' && i + 1 < L && buf[i+1] == '>') {
-                char *tok = kmalloc(3); tok[0] = '>'; tok[1] = '>'; tok[2] = '\0'; tokens[tcount++] = tok; i += 2;
+                char *tok = kmalloc(3); tok[0] = '>'; tok[1] = '>'; tok[2] = '\0'; 
+                if (tcount < 64) tokens[tcount++] = tok; else kfree(tok);
+                i += 2;
             } else {
-                char *tok = kmalloc(2); tok[0] = c; tok[1] = '\0'; tokens[tcount++] = tok; ++i;
+                char *tok = kmalloc(2); tok[0] = c; tok[1] = '\0'; 
+                if (tcount < 64) tokens[tcount++] = tok; else kfree(tok);
+                ++i;
             }
         } else {
             size_t start = i;
@@ -362,7 +380,7 @@ static struct pipeline_job *parse_pipeline(const char *line_in) {
                 tok[di++] = buf[j];
             }
             tok[di] = '\0';
-            tokens[tcount++] = tok;
+            if (tcount < 64) tokens[tcount++] = tok; else kfree(tok);
         }
     }
 
@@ -372,6 +390,7 @@ static struct pipeline_job *parse_pipeline(const char *line_in) {
         kfree(buf);
         return NULL;
     }
+    memset(job, 0, sizeof(*job));
     job->ncmds = 0; job->out_file = NULL; job->append = 0; job->background = 0;
     job->tokens = kmalloc(sizeof(char*) * tcount);
     job->token_count = tcount;
@@ -849,6 +868,42 @@ static int cmd_systemctl(int argc, char **argv, const char *in, size_t in_len, c
     const char *u = "unknown subcommand\n"; size_t m = strlen(u); if (m>out_cap) m=out_cap; memcpy(out,u,m); return (int)m;
 }
 
+static int cmd_free(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
+    (void)argc; (void)argv; (void)in; (void)in_len;
+    size_t free_pages = palloc_get_free_pages();
+    size_t free_mem = free_pages * 4096;
+    
+    char buf[128];
+    int len = 0;
+    
+    /* Simple integer to string manual logic */
+    char num[32]; int n = 0;
+    size_t t = free_mem;
+    if (t == 0) num[n++] = '0';
+    else {
+        while (t > 0) { num[n++] = (t % 10) + '0'; t /= 10; }
+    }
+    
+    len += 7; if ((size_t)len < sizeof(buf)) memcpy(buf, "Memory:", 7);
+    int start = len;
+    
+    // Reverse digits
+    for (int i=0; i<n; i++) {
+        if ((size_t)(start + i) < sizeof(buf) - 2) buf[start + i] = num[n - 1 - i];
+    }
+    len += n;
+    
+    if ((size_t)len < sizeof(buf) - 6) {
+        memcpy(buf + len, " bytes\n", 7);
+        len += 7;
+    }
+    buf[len] = '\0';
+    
+    if ((size_t)len > out_cap) len = out_cap;
+    memcpy(out, buf, len);
+    return len;
+}
+
 /* Builtin: ps - list task ids */
 static int cmd_ps(int argc, char **argv, const char *in, size_t in_len, char *out, size_t out_cap) {
     (void)argc; (void)argv; (void)in; (void)in_len;
@@ -939,9 +994,9 @@ static int cmd_ps(int argc, char **argv, const char *in, size_t in_len, char *ou
 
 /* shell main */
 void shell_main(void *arg) {
-    struct pty *pty = (struct pty *)arg;
+    struct pty *_pty = (struct pty *)arg;
     
-    if (pty) {
+    if (_pty) {
         uart_puts("[shell] GUI SHELL PROBE START\n");
         // *(volatile int*)0 = 0; // Trigger Data Abort
         // uart_puts("[shell] PROBE SURVIVED (This should not happen)\n");
@@ -950,15 +1005,21 @@ void shell_main(void *arg) {
     
     uart_puts("[shell] starting with arg="); uart_put_hex((uintptr_t)arg); uart_puts("\n");
 
-    if (pty) {
+    if (_pty) {
         /* Write banner to PTY */
         const char *b = "myras shell v0.2 (PTY)\nType 'help' for commands.\n";
-        for (const char *s = b; *s; ++s) pty_write_out(pty, *s);
+        for (const char *s = b; *s; ++s) pty_write_out(_pty, *s);
     } else {
         shell_puts("myras shell v0.2\nType 'help' for commands.\n");
     }
 
-    char line[256];
+    /* Use larger buffer for input line */
+    #define LINE_BUF_SIZE 2048
+    char *line = kmalloc(LINE_BUF_SIZE);
+    if (!line) {
+        uart_puts("[shell] FATAL: failed to allocate line buffer\n");
+        return; 
+    }
     for (;;) {
         if (shell_should_exit) break;
         
@@ -976,42 +1037,20 @@ void shell_main(void *arg) {
             strcpy(pbuf, "myras> ");
         }
 
-        if (pty) {
-            for (char *s = pbuf; *s; ++s) pty_write_out(pty, *s);
+        if (_pty) {
+            for (char *s = pbuf; *s; ++s) pty_write_out(_pty, *s);
         } else {
             shell_puts(pbuf);
         }
+        uart_puts("[shell] prompt shown\n");
 
         int len = 0;
-        if (pty) {
-            uart_puts("[shell] entering pty loop\n");
-            size_t i = 0;
-            uart_puts("[shell] loop start\n");
-            while (i + 1 < sizeof(line)) {
-                // uart_puts("L"); // loop
-                if (!pty_has_in(pty)) { 
-                    yield(); 
-                    continue; 
-                }
-                // uart_puts("[shell] has input!\n");
-                char c = pty_read_in(pty);
-                /* DEBUG: Trace input flow */
-                // uart_puts("[shell] PTY read char: "); uart_put_hex(c); uart_puts("\n");
-                if (c == '\r' || c == '\n') { pty_write_out(pty, '\n'); break; }
-                if (c == '\b' || c == 127) { 
-                    if (i > 0) { 
-                        i--; 
-                        pty_write_out(pty, '\b'); pty_write_out(pty, ' '); pty_write_out(pty, '\b'); 
-                    } 
-                    continue; 
-                }
-                pty_write_out(pty, c); 
-                line[i++] = c;
-            }
-            line[i] = '\0';
-            len = i;
+        if (_pty) {
+            /* Blocking line read handled by PTY driver */
+            len = pty_getline(_pty, line, LINE_BUF_SIZE);
+            uart_puts("[shell] line: '"); uart_puts(line); uart_puts("'\n");
         } else {
-            len = shell_read_line(line, sizeof(line));
+            len = shell_read_line(line, LINE_BUF_SIZE);
         }
 
         if (len <= 0) { yield(); continue; }
@@ -1019,13 +1058,14 @@ void shell_main(void *arg) {
         uart_puts("[shell] processing line: '"); uart_puts(line); uart_puts("'\n");
 
         struct pipeline_job *job = parse_pipeline(line);
+        uart_puts("[shell] parsed pipeline: "); uart_put_hex((uintptr_t)job); uart_puts("\n");
         if (!job) { 
-            if (pty) { const char *e="error parsing\n"; for(const char*s=e;*s;++s) pty_write_out(pty,*s); }
+            if (_pty) { const char *e="error parsing\n"; for(const char*s=e;*s;++s) pty_write_out(_pty,*s); }
             else shell_puts("error parsing\n"); 
             continue; 
         }
         /* Pass PTY to job */
-        job->pty = pty;
+        job->pty = _pty;
 
         if (job->background) {
             /* create a background wrapper task that runs once and then disables itself */
@@ -1035,10 +1075,10 @@ void shell_main(void *arg) {
             int tmp = pid; if (tmp==0) { bbuf[bl++]='0'; }
             else { int p10[16]; int pi=0; while (tmp>0 && pi<16) { p10[pi++]=tmp%10; tmp/=10; } for (int j=pi-1;j>=0;--j) bbuf[bl++]= '0' + p10[j]; }
             bbuf[bl++]='\n'; bbuf[bl]=0; 
-            if (pty) {
+            if (_pty) {
                 const char *msg = "started pid ";
-                for(const char*s=msg;*s;++s) pty_write_out(pty,*s);
-                for(char*s=bbuf;*s;++s) pty_write_out(pty,*s);
+                for(const char*s=msg;*s;++s) pty_write_out(_pty,*s);
+                for(char*s=bbuf;*s;++s) pty_write_out(_pty,*s);
             } else {
                 init_puts("started pid "); init_puts(bbuf);
             }
@@ -1048,14 +1088,19 @@ void shell_main(void *arg) {
             extern volatile int shell_sigint;
             shell_sigint = 0;
             run_pipeline_internal(job);
+            
+            uart_puts("[shell] cleaning up job\n");
             /* free job (same as pipeline_runner cleanup) */
             for (int i = 0; i < job->ncmds; ++i) {
                 if (job->argvs[i]) kfree(job->argvs[i]);
             }
+            uart_puts("[shell] freed argvs\n");
             for (int t = 0; t < job->token_count; ++t) if (job->tokens[t]) kfree(job->tokens[t]);
+            uart_puts("[shell] freed tokens\n");
             if (job->tokens) kfree(job->tokens);
             if (job->out_file) kfree(job->out_file);
             kfree(job);
+            uart_puts("[shell] job freed\n");
         }
     }
     /* Exiting shell */

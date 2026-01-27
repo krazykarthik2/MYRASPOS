@@ -11,6 +11,28 @@ int irq_register(int irq_num, irq_handler_fn fn, void *arg);
 void irq_poll_and_dispatch(void);
 
 /* entry called from assembly IRQ vector */
+/* entry called from assembly IRQ vector */
 void irq_entry_c(void);
+
+static inline unsigned long irq_save(void) {
+    unsigned long flags;
+    __asm__ volatile(
+        "mrs %0, daif\n"
+        "msr daifset, #2"
+        : "=r" (flags)
+        :
+        : "memory"
+    );
+    return flags;
+}
+
+static inline void irq_restore(unsigned long flags) {
+    __asm__ volatile(
+        "msr daif, %0"
+        :
+        : "r" (flags)
+        : "memory"
+    );
+}
 
 #endif
