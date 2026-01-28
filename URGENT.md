@@ -1,36 +1,8 @@
-A. Cursor & Input Responsiveness (UI / UX)
-
-Cursor as overlay layer
-
-Cursor must NOT be part of WM redraw
-
-Drawn last, top-most
-
-Independent of window rendering
-
-Dedicated high-priority cursor task
-
-Interrupt-driven mouse input
-
-IRQ updates mouse state only
-
-Cursor task restores old area + redraws cursor
-
-Highest priority, minimal work
-
-B. System-Wide Performance Improvements (1–9 locked)
-
-Event-driven architecture
+A. System-Wide Performance Improvements (1–9 locked)
 
 No busy loops
 
-WM, shell, apps wake only on events
-
 No unnecessary redraws
-
-Redraw only when state changes
-
-No periodic full redraws
 
 Dirty rectangles / damage regions
 
@@ -45,18 +17,6 @@ Avoid context switch when only one runnable task
 Batch wakeups
 
 Reduce timer tick frequency
-
-Minimal IRQ work
-
-IRQ handlers only:
-
-capture data
-
-set flags
-
-wake tasks
-
-No rendering / allocation / FS in IRQ
 
 Allocator hot-path fixes
 

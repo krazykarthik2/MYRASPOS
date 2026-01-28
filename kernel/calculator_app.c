@@ -32,20 +32,19 @@ static void calc_draw(struct window *win) {
     if (!g_calc) return;
     
     /* Display Background (Sleeker dark grey) */
-    fb_draw_rect(win->x + 10, win->y + 30, win->w - 20, 60, 0x1A1A1A);
-    fb_draw_rect_outline(win->x + 10, win->y + 30, win->w - 20, 60, 0x333333, 1);
+    wm_draw_rect(win, 8, 8, win->w - 16, 60, 0x1A1A1A);
     
     /* Top text (Expression) - Small, dimmed gray */
     int top_len = (int)strlen(g_calc->top_text);
-    int top_x = win->x + win->w - 20 - (top_len * 8); // ~8px per char scale 1
-    if (top_x < win->x + 15) top_x = win->x + 15;
-    fb_draw_text(top_x, win->y + 35, g_calc->top_text, 0x888888, 1);
+    int top_x = (win->w - 20) - (top_len * 7); 
+    if (top_x < 12) top_x = 12;
+    wm_draw_text(win, top_x, 15, g_calc->top_text, 0x888888, 1);
     
     /* Bottom text (Current Entry/Result) - Large, bright green or white */
     int bot_len = (int)strlen(g_calc->bottom_text);
-    int bot_x = win->x + win->w - 20 - (bot_len * 16); // ~16px per char scale 2
-    if (bot_x < win->x + 15) bot_x = win->x + 15;
-    fb_draw_text(bot_x, win->y + 55, g_calc->bottom_text, (g_calc->has_result ? 0x55FF55 : 0xFFFFFF), 2);
+    int bot_x = (win->w - 20) - (bot_len * 14); 
+    if (bot_x < 12) bot_x = 12;
+    wm_draw_text(win, bot_x, 35, g_calc->bottom_text, (g_calc->has_result ? 0x55FF55 : 0xFFFFFF), 2);
 
     /* Grid of buttons */
     const char *labels[] = {
@@ -66,8 +65,8 @@ static void calc_draw(struct window *win) {
         
         int r = i / grid_cols;
         int c = i % grid_cols;
-        int bx = win->x + 15 + c * (btn_w + 2);
-        int by = win->y + 100 + r * (btn_h + 2);
+        int bx = 12 + c * (btn_w + 2);
+        int by = 80 + r * (btn_h + 2);
         
         /* Special colors for operators */
         uint32_t color = 0x333333;
@@ -75,11 +74,10 @@ static void calc_draw(struct window *win) {
         if (l[0] == '=' || l[0] == '+' || l[0] == '-' || l[0] == '*' || l[0] == '/') color = 0xFF9500; // Orange
         else if (l[0] == 'C' || l[0] == '%' || strcmp(l, "±") == 0) color = 0xA5A5A5; // Light Gray
         
-        fb_draw_rect(bx, by, btn_w, btn_h, color);
-        fb_draw_rect_outline(bx, by, btn_w, btn_h, color + 0x111111, 1);
+        wm_draw_rect(win, bx, by, btn_w, btn_h, color);
         
         uint32_t text_color = (color == 0xA5A5A5) ? 0x000000 : 0xFFFFFF;
-        fb_draw_text(bx + btn_w/2 - 5, by + btn_h/2 - 7, labels[i], text_color, 2);
+        wm_draw_text(win, bx + btn_w/2 - 7, by + btn_h/2 - 7, labels[i], text_color, 2);
     }
 }
 
@@ -240,9 +238,12 @@ static void calc_task(struct calc_state *st) {
                         /* 4. Controls */
                         else if (ev.code == 0x01) c = 27;   /* ESC */
                         else if (ev.code == 0x0E) c = '\b'; /* Backspace */
-                        else if (ev.code == 0x1C) c = '=';  /* Enter -> Equals */
+                        else if (ev.code == 0x1C || ev.code == 0x60) c = '=';  /* Enter/KPEnter -> Equals */
                         
-                        if (c != 0) handle_input(c);
+                        if (c != 0) {
+                            handle_input(c);
+                            wm_request_render(g_calc->win);
+                        }
                     }
                 }
             }
@@ -281,6 +282,7 @@ static void calc_task(struct calc_state *st) {
                         else if (selection[0] != ' ' && selection[0] != '\0') {
                             handle_input(selection[0]);
                         }
+                        wm_request_render(g_calc->win);
                         break;
                     }
                 }

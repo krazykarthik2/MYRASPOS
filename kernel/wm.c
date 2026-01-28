@@ -91,7 +91,7 @@ static void wm_list_unlock(void) {
     wm_global_lock = 0;
 }
 
-struct window* wm_create_window(const char *name, int x, int y, int w, int h, void (*draw_fn)(struct window*)) {
+struct window* wm_create_window(const char *name, int x, int y, int w, int h, void (*render_fn)(struct window*)) {
     struct window *win = kmalloc(sizeof(struct window));
     if (!win) return NULL;
 
@@ -100,26 +100,24 @@ struct window* wm_create_window(const char *name, int x, int y, int w, int h, vo
     win->name[WM_WINDOW_NAME_MAX - 1] = '\0';
     win->x = x; win->y = y; win->w = w; win->h = h;
     win->saved_x = x; win->saved_y = y; win->saved_w = w; win->saved_h = h;
-    win->state = WM_STATE_NORMAL;
     win->border_color = 0x444444;
     win->title_color = 0x2222FF;
-    win->draw_content = draw_fn;
+    win->render = render_fn;
     win->on_close = NULL;
+    win->user_data = NULL;
     win->input_head = win->input_tail = 0;
-    win->input_lock = 0;
     win->input_lock = 0;
     win->tty = NULL;
     win->is_dirty = 1;
-    
-    win->input_lock = 0;
-    win->tty = NULL;
     
     wm_list_lock();
     win->next = window_list;
     window_list = win;
     focused_window = win; /* focus new window */
+    desktop_dirty = 1;
     wm_list_unlock();
     
+    task_wake_event(WM_EVENT_ID);
     return win;
 }
 
@@ -139,6 +137,8 @@ void wm_close_window(struct window *win) {
                 win->on_close(win);
             }
             kfree(win);
+            desktop_dirty = 1;
+            task_wake_event(WM_EVENT_ID);
             return;
         }
         prev = &curr->next;
@@ -149,6 +149,71 @@ void wm_close_window(struct window *win) {
 
 void wm_get_mouse_state(int *x, int *y, int *btn) {
     input_get_mouse_state(x, y, btn);
+}
+
+
+static void wm_bring_to_front(struct window *win) {
+    if (!win || window_list == win) return;
+    
+    struct window **prev = &window_list;
+    struct window *curr = window_list;
+    while (curr) {
+        if (curr == win) {
+            *prev = curr->next;
+            win->next = window_list;
+            window_list = win;
+            return;
+        }
+        prev = &curr->next;
+        curr = curr->next;
+    }
+}
+
+void wm_focus_window(struct window *win) {
+    if (!win) return;
+    wm_list_lock();
+    focused_window = win;
+    wm_bring_to_front(win);
+    win->is_dirty = 1;
+    desktop_dirty = 1;
+    wm_list_unlock();
+    task_wake_event(WM_EVENT_ID);
+}
+
+void wm_request_render(struct window *win) {
+    if (!win) return;
+    win->is_dirty = 1;
+    task_wake_event(WM_EVENT_ID);
+}
+
+void wm_draw_rect(struct window *win, int x, int y, int w, int h, uint32_t color) {
+    if (!win) return;
+    int ox = win->x + 2;
+    int oy = (win->state == WM_STATE_FULLSCREEN) ? win->y + 2 : win->y + 22;
+    int mw = win->w - 4;
+    int mh = (win->state == WM_STATE_FULLSCREEN) ? win->h - 4 : win->h - 24;
+
+    /* Clipping to window content area */
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > mw) w = mw - x;
+    if (y + h > mh) h = mh - y;
+    if (w <= 0 || h <= 0) return;
+
+    fb_draw_rect(ox + x, oy + y, w, h, color);
+}
+
+void wm_draw_text(struct window *win, int x, int y, const char *text, uint32_t color, int scale) {
+    if (!win) return;
+    int ox = win->x + 2;
+    int oy = (win->state == WM_STATE_FULLSCREEN) ? win->y + 2 : win->y + 22;
+    int mw = win->w - 4;
+    int mh = (win->state == WM_STATE_FULLSCREEN) ? win->h - 4 : win->h - 24;
+
+    /* Basic clipping check for start position */
+    if (x < 0 || y < 0 || x >= mw || y >= mh) return;
+
+    fb_draw_text(ox + x, oy + y, text, color, scale);
 }
 
 int wm_is_focused(struct window *win) {
@@ -169,22 +234,6 @@ int wm_pop_key_event(struct window *win, struct wm_input_event *ev) {
     return 1;
 }
 
-static void wm_bring_to_front(struct window *win) {
-    if (!win || window_list == win) return;
-    
-    struct window **prev = &window_list;
-    struct window *curr = window_list;
-    while (curr) {
-        if (curr == win) {
-            *prev = curr->next;
-            win->next = window_list;
-            window_list = win;
-            return;
-        }
-        prev = &curr->next;
-        curr = curr->next;
-    }
-}
 
 static void wm_handle_clicks(int is_press) {
     static struct window *drag_win = NULL;
@@ -217,7 +266,7 @@ static void wm_handle_clicks(int is_press) {
     if (my >= screen_h - taskbar_h) {
         // MYRA Button: 5...65
         if (mx >= 5 && mx <= 65) {
-            myra_app_open();
+            myra_app_toggle();
             return;
         }
         // Taskbar entries
@@ -229,6 +278,8 @@ static void wm_handle_clicks(int is_press) {
                 else {
                     focused_window = tw;
                     wm_bring_to_front(tw);
+                    desktop_dirty = 1;
+                    task_wake_event(WM_EVENT_ID);
                 }
                 return;
             }
@@ -249,8 +300,10 @@ static void wm_handle_clicks(int is_press) {
                 // Focus and bring to front
                 if (focused_window != w) {
                     focused_window = w;
+                    desktop_dirty = 1;
                 }
                 wm_bring_to_front(w);
+                task_wake_event(WM_EVENT_ID);
 
                 // Check for buttons in title bar (only if not fullscreen)
                 if (w->state != WM_STATE_FULLSCREEN && my < w->y + 22) {
@@ -292,7 +345,7 @@ static void draw_taskbar(void) {
     
     /* Draw "Start" button placeholder */
     fb_draw_rect(5, screen_h - taskbar_h + 5, 60, taskbar_h - 10, 0x00AA00);
-    fb_draw_text(10, screen_h - taskbar_h + 8, "MYRA", 0xFFFFFF, 2);
+    fb_draw_text(10, screen_h - taskbar_h + 8, "VALLI", 0xFFFFFF, 2);
 
     /* Draw window entries - CRITICAL: Use locking to prevent race with window creation/deletion */
     int x = 75;
@@ -345,6 +398,8 @@ void wm_set_state(struct window *win, wm_state_t state) {
             /* handled by compositor skipping it */
             break;
     }
+    desktop_dirty = 1;
+    task_wake_event(WM_EVENT_ID);
 }
 
 void wm_compose(void) {
@@ -364,6 +419,12 @@ void wm_compose(void) {
     /* 2. Process keyboard events and distribute to focus */
     struct input_event kev;
     while (input_pop_key_event(&kev)) {
+        /* INTERCEPT META KEY (Scan Code 125) */
+        if (kev.type == INPUT_TYPE_KEY && kev.code == 125 && kev.value == 1) {
+            myra_app_toggle();
+            continue; /* swallowed by system */
+        }
+
         if (focused_window) {
             wm_lock_window(focused_window);
             int next_head = (focused_window->input_head + 1) % WM_INPUT_QUEUE_SIZE;
@@ -454,7 +515,7 @@ void wm_compose(void) {
             int content_y = (w->state == WM_STATE_FULLSCREEN) ? w->y + 2 : w->y + 22;
             int content_h = (w->state == WM_STATE_FULLSCREEN) ? w->h - 4 : w->h - 24;
             fb_draw_rect(w->x + 2, content_y, w->w - 4, content_h, 0x000000);
-            if (w->draw_content) w->draw_content(w);
+            if (w->render) w->render(w);
         }
     }
 

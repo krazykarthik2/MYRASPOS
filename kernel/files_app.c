@@ -136,52 +136,43 @@ static void refresh_file_list(void) {
 static void files_draw(struct window *win) {
     if (!g_files) return;
 
-    int content_y = win->y + 22;
-    int content_h = win->h - 22;
-
     // Background - Dark Blue-Grey
-    fb_draw_rect(win->x + 2, content_y, win->w - 4, content_h - 2, 0x1E1E2E);
+    wm_draw_rect(win, 0, 0, win->w - 4, win->h - 24, 0x1E1E2E);
     
     // Toolbar (Path + Search)
-    fb_draw_rect(win->x + 2, content_y, win->w - 4, 38, 0x11111B);
-    fb_draw_text(win->x + 10, content_y + 12, g_files->current_path, 0xCDD6F4, 1);
+    wm_draw_rect(win, 0, 0, win->w - 4, 38, 0x11111B);
+    wm_draw_text(win, 8, 12, g_files->current_path, 0xCDD6F4, 1);
     
     // Search Bar UI - Take inspiration from Myra app (Steel Blue/Dark theme)
     int search_w = 140;
-    int search_x = win->x + win->w - search_w - 15;
-    fb_draw_rect(search_x, content_y + 8, search_w, 22, 0x313244);
-    fb_draw_rect_outline(search_x, content_y + 8, search_w, 22, 0x6C7086, 1);
+    int search_x = (win->w - 4) - search_w - 15;
+    wm_draw_rect(win, search_x, 8, search_w, 22, 0x313244);
     
-    // Blinking Cursor Logic
-    uint32_t now = timer_get_ms();
-    if (now - g_files->last_cursor_toggle > 500) {
-        g_files->cursor_visible = !g_files->cursor_visible;
-        g_files->last_cursor_toggle = now;
-    }
+    // Blinking Cursor state is managed in files_task
 
     if (g_files->search_len == 0) {
-        fb_draw_text(search_x + 8, content_y + 11, "Search...", 0x6C7086, 1);
+        wm_draw_text(win, search_x + 8, 11, "Search...", 0x6C7086, 1);
     } else {
-        fb_draw_text(search_x + 8, content_y + 11, g_files->search_query, 0xF5E0DC, 1);
+        wm_draw_text(win, search_x + 8, 11, g_files->search_query, 0xF5E0DC, 1);
     }
     
     // Draw cursor after text
     if (g_files->cursor_visible && wm_is_focused(win)) {
         int cursor_x_pos = search_x + 8 + (g_files->search_len * 7);
         if (cursor_x_pos < search_x + search_w - 5) {
-            fb_draw_rect(cursor_x_pos, content_y + 11, 2, 16, 0xF5E0DC);
+            wm_draw_rect(win, cursor_x_pos, 11, 2, 16, 0xF5E0DC);
         }
     }
     
     // File List
-    int list_y = content_y + 45;
+    int list_y = 45;
     int item_h = 24;
     int footer_h = 25;
-    int list_area_h = content_h - 45 - footer_h; 
+    int list_area_h = (win->h - 24) - 45 - footer_h; 
     int max_visible = list_area_h / item_h;
 
     if (g_files->num_files == 0) {
-        fb_draw_text(win->x + 20, list_y + 10, "No items found in this directory.", 0x585B70, 1);
+        wm_draw_text(win, 18, list_y + 10, "No items found in this directory.", 0x585B70, 1);
     }
     
     for (int i = 0; i < max_visible; i++) {
@@ -192,17 +183,17 @@ static void files_draw(struct window *win) {
         
         // Soft Highlight if hovering or selected (selecting via mouse)
         if (idx == g_files->selected_index) {
-            fb_draw_rect(win->x + 2, y_pos, win->w - 4, item_h, 0x45475A);
+            wm_draw_rect(win, 0, y_pos, win->w - 4, item_h, 0x45475A);
         }
         
         uint32_t icon_color = g_files->files[idx].is_dir ? 0xF9E2AF : 0x89DCEB;
-        fb_draw_rect(win->x + 10, y_pos + 6, 12, 12, icon_color);
+        wm_draw_rect(win, 8, y_pos + 6, 12, 12, icon_color);
         
-        fb_draw_text(win->x + 30, y_pos + 8, g_files->files[idx].name, 0xCDD6F4, 1);
+        wm_draw_text(win, 28, y_pos + 8, g_files->files[idx].name, 0xCDD6F4, 1);
     }
 
     // Status Board
-    fb_draw_rect(win->x + 2, win->y + win->h - footer_h - 2, win->w - 4, footer_h, 0x11111B);
+    wm_draw_rect(win, 0, (win->h - 24) - footer_h, win->w - 4, footer_h, 0x11111B);
     char stats[128];
     strcpy(stats, "Items: ");
     int n = g_files->num_files;
@@ -212,7 +203,7 @@ static void files_draw(struct window *win) {
     /* ADD DEBUG INFO TO GUI */
     strcat(stats, " | CWD: "); strcat(stats, g_files->current_path);
     
-    fb_draw_text(win->x + 10, win->y + win->h - footer_h + 3, stats, 0x9399B2, 1);
+    wm_draw_text(win, 8, (win->h - 24) - footer_h + 5, stats, 0x9399B2, 1);
 }
 
 static void files_on_close(struct window *win) {
@@ -303,7 +294,16 @@ static void files_task(void *arg) {
         if (now - st->last_periodic_refresh > 3000) {
             refresh_file_list();
             st->last_periodic_refresh = now;
-            // uart_puts("[files] periodic refresh done\n");
+            wm_request_render(st->win);
+        }
+
+        // 2. Cursor Blink Logic
+        if (now - st->last_cursor_toggle > 500) {
+            st->cursor_visible = !st->cursor_visible;
+            st->last_cursor_toggle = now;
+            if (wm_is_focused(st->win)) {
+                wm_request_render(st->win);
+            }
         }
 
         if (wm_is_focused(st->win)) {
@@ -353,6 +353,7 @@ static void files_task(void *arg) {
                         
                         st->cursor_visible = 1;
                         st->last_cursor_toggle = now;
+                        wm_request_render(st->win);
                     }
                 }
             }
@@ -368,7 +369,10 @@ static void files_task(void *arg) {
                 int list_ly = ly - 45;
                 int idx = st->scroll_offset + list_ly / 24;
                 if (idx < st->num_files) {
-                    st->selected_index = idx;
+                    if (st->selected_index != idx) {
+                        st->selected_index = idx;
+                        wm_request_render(st->win);
+                    }
                     
                     if (mbtn && !last_mouse_btn) {
                         uint32_t click_now = timer_get_ms();

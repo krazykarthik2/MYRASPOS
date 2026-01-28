@@ -11,6 +11,7 @@
 #include <string.h>
 #include "uart.h"
 #include "files_app.h"
+#include "keyboard_tester_app.h"
 
 struct app_info {
     const char *name;
@@ -35,7 +36,7 @@ static void launch_settings(void) { wm_create_window("Settings", 150, 150, 350, 
 static void help_draw(struct window *win) {
     fb_draw_text(win->x + 20, win->y + 40, "Help & Documentation", 0xAAAAAA, 2);
     fb_draw_hline(win->x + 20, win->x + win->w - 20, win->y + 65, 0x444444);
-    fb_draw_text(win->x + 30, win->y + 80, "Welcome to Myra OS!", 0x00FF00, 1);
+    fb_draw_text(win->x + 30, win->y + 80, "Welcome to Valli OS!", 0x00FF00, 1);
     fb_draw_text(win->x + 30, win->y + 110, "- Use Arrows to move cursor", 0xFFFFFF, 1);
     fb_draw_text(win->x + 30, win->y + 130, "- Enter/Space to click", 0xFFFFFF, 1);
     fb_draw_text(win->x + 30, win->y + 150, "- Shift for speed", 0xFFFFFF, 1);
@@ -43,10 +44,12 @@ static void help_draw(struct window *win) {
 static void launch_help(void) { wm_create_window("Help", 180, 180, 400, 300, help_draw); }
 
 static void launch_calculator(void) { calculator_app_start(); }
+static void launch_keytester(void) { keyboard_tester_app_start(); }
 
 static struct app_info apps[] = {
     {"Terminal", launch_terminal, 0},
     {"Calculator", launch_calculator, 0},
+    {"Keyboard Tester", launch_keytester, 0},
     {"Files", launch_files, 0},
     {"Settings", launch_settings, 0},
     {"Help", launch_help, 0}
@@ -129,20 +132,16 @@ static void myra_draw(struct window *win) {
     /* Actually task updates visible state, we just draw */
     
     /* Search Bar Background */
-    fb_draw_rect(win->x + win->w/2 - 100, win->y + 30, 200, 25, 0x333333);
-    fb_draw_rect_outline(win->x + win->w/2 - 100, win->y + 30, 200, 25, 0xAAAAAA, 1);
+    int sb_x = win->w/2 - 100;
+    wm_draw_rect(win, sb_x, 8, 200, 25, 0x333333);
     
-    // uart_puts("[myra] drawn search bar\n");
-
     /* Search Text */
-    int text_x = win->x + win->w/2 - 95;
-    int text_y = win->y + 35;
+    int text_x = sb_x + 5;
+    int text_y = 13;
     if (g_myra->query_len > 0) {
-        fb_draw_text(text_x, text_y, g_myra->search_query, 0xFFFFFF, 1);
-        // uart_puts("[myra] drawn search text\n");
+        wm_draw_text(win, text_x, text_y, g_myra->search_query, 0xFFFFFF, 1);
     } else {
-        fb_draw_text(text_x, text_y, "Search...", 0x888888, 1);
-        // uart_puts("[myra] drawn placeholder\n");
+        wm_draw_text(win, text_x, text_y, "Search...", 0x888888, 1);
     }
 
     /* Grid layout 6x6 */
@@ -151,22 +150,17 @@ static void myra_draw(struct window *win) {
 
     // uart_puts("[myra] drawing grid\n");
     for (int i = 0; i < g_myra->num_filtered; i++) {
-        // uart_puts("[myra] item "); 
-        uart_put_hex(i); uart_puts("\n");
         int r = i / 6;
         int c = i % 6;
-        int x = win->x + c * cell_w + 10;
-        int y = win->y + 65 + r * cell_h + 10;
+        int x = c * cell_w + 10;
+        int y = 43 + r * cell_h + 10;
 
         /* App Icon placeholder */
-        fb_draw_rect(x, y, 40, 40, 0x555555);
-        fb_draw_rect_outline(x, y, 40, 40, 0xFFFFFF, 1);
+        wm_draw_rect(win, x, y, 40, 40, 0x555555);
         
         /* App Name */
         if (g_myra->filtered_apps[i] && g_myra->filtered_apps[i]->name) {
-             fb_draw_text(x, y + 45, g_myra->filtered_apps[i]->name, 0xFFFFFF, 1);
-        } else {
-            //  uart_puts("[myra] NULL app entry!\n");
+             wm_draw_text(win, x, y + 45, g_myra->filtered_apps[i]->name, 0xFFFFFF, 1);
         }
     }
     // uart_puts("[myra] done drawing\n");
@@ -188,6 +182,7 @@ static void myra_task(void *arg) {
         if (now - g_myra->last_blink > 500) {
             g_myra->cursor_visible = !g_myra->cursor_visible;
             g_myra->last_blink = now;
+            wm_request_render(g_myra->win);
         }
 
         /* Poll keyboard for search bar if focused */
@@ -216,6 +211,13 @@ static void myra_task(void *arg) {
 
                         if (ev.code == 0x0E) { /* Backspace */
                             if (g_myra->query_len > 0) g_myra->search_query[--g_myra->query_len] = '\0';
+                        } else if (ev.code == 0x1C || ev.code == 0x9C) { /* Enter (Standard or KP) */
+                            if (g_myra->num_filtered > 0 && g_myra->filtered_apps[0]) {
+                                g_myra->filtered_apps[0]->launch();
+                                wm_close_window(g_myra->win);
+                                update_search(); /* and don't continue loop as window is gone */
+                                break; 
+                            }
                         } else if (ev.code < sizeof(s2a)) {
                             char c = shift_state ? s2as[ev.code] : s2a[ev.code];
                             if (c >= 32 && c <= 126 && g_myra->query_len < 63) {
@@ -224,6 +226,7 @@ static void myra_task(void *arg) {
                             }
                         }
                         update_search();
+                        wm_request_render(g_myra->win);
                     }
                 }
             }
@@ -278,11 +281,19 @@ void myra_app_open(void) {
     int screen_w, screen_h;
     fb_get_res(&screen_w, &screen_h);
     
-    g_myra->win = wm_create_window("Myra Launcher", (screen_w - w)/2, (screen_h - h)/2, w, h, myra_draw);
+    g_myra->win = wm_create_window("Valli Launcher", (screen_w - w)/2, (screen_h - h)/2, w, h, myra_draw);
     g_myra->win->on_close = myra_on_close;
     g_myra->num_filtered = NUM_APPS;
     for (size_t i = 0; i < NUM_APPS; i++) g_myra->filtered_apps[i] = &apps[i];
 
     /* Pass g_myra as arg so task can free it */
     task_create(myra_task, g_myra, "myra_app");
+}
+
+void myra_app_toggle(void) {
+    if (g_myra) {
+        wm_close_window(g_myra->win);
+    } else {
+        myra_app_open();
+    }
 }

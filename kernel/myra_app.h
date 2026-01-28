@@ -2,5 +2,6 @@
 #define MYRA_APP_H
 
 void myra_app_open(void);
+void myra_app_toggle(void);
 
 #endif

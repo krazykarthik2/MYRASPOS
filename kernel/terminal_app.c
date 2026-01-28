@@ -45,24 +45,23 @@ static void term_render_fn(struct window *win) {
     for (int r = 0; r < TERM_ROWS; r++) {
         for (int c = 0; c < TERM_COLS; c++) {
             char ch = g_term->grid[r][c];
-            if (ch > 0 && ch != ' ') {
+            if (ch > 32 && ch <= 126) {
                 char s[2] = {ch, 0};
-                fb_draw_text(win->x + 5 + c * 7, win->y + 25 + r * 10, s, 0x00FF00, 1);
+                wm_draw_text(win, 5 + c * 7, 5 + r * 10, s, 0x00FF00, 1);
             }
         }
     }
     
     /* Blink cursor every 500ms */
-    /* Blink cursor every 500ms */
     uint32_t now = timer_get_ms();
     if (now - g_term->last_blink > 500) {
         g_term->cursor_visible = !g_term->cursor_visible;
         g_term->last_blink = now;
-        // uart_puts("[term] blink\n");
+        wm_request_render(win);
     }
 
     if (g_term->cursor_visible) {
-        fb_draw_rect(win->x + 5 + g_term->cursor_x * 7, win->y + 25 + g_term->cursor_y * 10, 6, 9, 0x00AA00);
+        wm_draw_rect(win, 5 + g_term->cursor_x * 7, 5 + g_term->cursor_y * 10, 6, 9, 0x00AA00);
     }
 }
 
@@ -109,6 +108,7 @@ static void term_update_task(void *arg) {
              }
              t->cursor_visible = 1;
              t->last_blink = timer_get_ms();
+             wm_request_render(t->win);
 
              if (++count > 64) { count = 0; yield(); }
              
