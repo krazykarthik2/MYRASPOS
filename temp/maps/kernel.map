@@ -351,7 +351,7 @@ LOAD temp/objects/files.o
 .iplt           0x000000004081f06c        0x0
  .iplt          0x000000004081f06c        0x0 temp/objects/start.o
 
-.rodata         0x000000004081f070     0x290d
+.rodata         0x000000004081f070     0x2905
  *(.rodata .rodata.*)
  .rodata        0x000000004081f070       0x5c temp/objects/mmu.o
  *fill*         0x000000004081f0cc        0x4 
@@ -420,13 +420,13 @@ LOAD temp/objects/files.o
  *fill*         0x0000000040821767        0x1 
  .rodata        0x0000000040821768      0x18a temp/objects/keyboard_tester_app.o
  *fill*         0x00000000408218f2        0x6 
- .rodata        0x00000000408218f8       0x85 temp/objects/v_edit.o
+ .rodata        0x00000000408218f8       0x7d temp/objects/v_edit.o
 
-.rela.dyn       0x0000000040821980        0x0
- .rela.iplt     0x0000000040821980        0x0 temp/objects/start.o
+.rela.dyn       0x0000000040821978        0x0
+ .rela.iplt     0x0000000040821978        0x0 temp/objects/start.o
  .rela.text.boot
-                0x0000000040821980        0x0 temp/objects/start.o
- .rela.text     0x0000000040821980        0x0 temp/objects/start.o
+                0x0000000040821978        0x0 temp/objects/start.o
+ .rela.text     0x0000000040821978        0x0 temp/objects/start.o
 
 .data           0x0000000040822000      0x69a
  *(.data .data.*)
