@@ -12,10 +12,12 @@
 #include "uart.h"
 #include "files_app.h"
 #include "keyboard_tester_app.h"
+#include "editor_app.h"
 
 struct app_info {
     const char *name;
     void (*launch)(void);
+    const char *icon_path;
     int dist; /* for search results */
 };
 
@@ -45,14 +47,16 @@ static void launch_help(void) { wm_create_window("Help", 180, 180, 400, 300, hel
 
 static void launch_calculator(void) { calculator_app_start(); }
 static void launch_keytester(void) { keyboard_tester_app_start(); }
+static void launch_editor(void) { editor_app_start(NULL); }
 
 static struct app_info apps[] = {
-    {"Terminal", launch_terminal, 0},
-    {"Calculator", launch_calculator, 0},
-    {"Keyboard Tester", launch_keytester, 0},
-    {"Files", launch_files, 0},
-    {"Settings", launch_settings, 0},
-    {"Help", launch_help, 0}
+    {"Terminal", launch_terminal, "/icons/terminal.bin", 0},
+    {"Calculator", launch_calculator, "/icons/calc.bin", 0},
+    {"Keyboard Tester", launch_keytester, "/icons/keys.bin", 0},
+    {"File Explorer", launch_files, "/icons/files.bin", 0},
+    {"Valli Editor", launch_editor, "/icons/editor.bin", 0},
+    {"Settings", launch_settings, "/icons/settings.bin", 0},
+    {"Help", launch_help, "/icons/help.bin", 0}
 };
 #define NUM_APPS (sizeof(apps)/sizeof(apps[0]))
 
@@ -215,7 +219,7 @@ static void myra_task(void *arg) {
                             if (g_myra->num_filtered > 0 && g_myra->filtered_apps[0]) {
                                 g_myra->filtered_apps[0]->launch();
                                 wm_close_window(g_myra->win);
-                                update_search(); /* and don't continue loop as window is gone */
+                                /* update_search(); REMOVED: causes panic because g_myra is NULL after close */
                                 break; 
                             }
                         } else if (ev.code < sizeof(s2a)) {
@@ -288,6 +292,10 @@ void myra_app_open(void) {
 
     /* Pass g_myra as arg so task can free it */
     task_create(myra_task, g_myra, "myra_app");
+}
+
+static void editor_app_start_null(void) {
+    editor_app_start(NULL);
 }
 
 void myra_app_toggle(void) {

@@ -58,7 +58,7 @@ No text redraw per frame
 
 (Explicitly excluding profiling/visibility tools — per your instruction)
 
-C. Editor (Userland / Kernel App)
+B. Editor (Userland / Kernel App)
 
 Simple Vim-style text editor
 
@@ -74,7 +74,7 @@ Basic viewport scrolling
 
 Naive implementation (no undo tree, no plugins)
 
-D. Networking Stack (Strict Scope)
+C. Networking Stack (Strict Scope)
 
 WiFi-only networking
 

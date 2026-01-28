@@ -18,5 +18,6 @@ int ramfs_is_dir(const char *name);
 */
 int ramfs_export(const char *path);
 int ramfs_import(const char *path);
+int ramfs_get_size(const char *name);
 
 #endif

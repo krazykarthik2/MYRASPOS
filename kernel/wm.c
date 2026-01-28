@@ -19,6 +19,8 @@ static int desktop_dirty = 1;
 static int screen_w = 0, screen_h = 0;
 static const int taskbar_h = 32;
 
+static int wm_last_mx = -1, wm_last_my = -1;
+
 static int shift_state = 0;
 static int caps_lock = 0;
 
@@ -461,8 +463,11 @@ void wm_compose(void) {
     /* 3. Handle dragging / non-press UI state */
     wm_handle_clicks(0);
 
-    /* 4. Check if we actually need to redraw the screen buffer.
-     * We don't skip the event loop above, but we skip the heavy draw below. */
+    /* 4. Check if we actually need to redraw. */
+    int mx, my, mbtn;
+    wm_get_mouse_state(&mx, &my, &mbtn);
+    int mouse_moved = (mx != wm_last_mx || my != wm_last_my);
+
     int any_dirty = desktop_dirty;
     struct window *w_ptr = window_list;
     while (w_ptr) {
@@ -470,18 +475,19 @@ void wm_compose(void) {
         w_ptr = w_ptr->next;
     }
     
-    if (!any_dirty) return;
+    if (!any_dirty && !mouse_moved) return;
     
-    desktop_dirty = 0;
-    struct window *w_reset = window_list;
-    while (w_reset) {
-        w_reset->is_dirty = 0;
-        w_reset = w_reset->next;
-    }
-
     /* 5. Perform the Draw */
-    /* Desktop background (Steel Blue) */
-    fb_draw_rect(0, 0, screen_w, screen_h, 0x4682B4);
+    if (any_dirty) {
+        desktop_dirty = 0;
+        struct window *w_reset = window_list;
+        while (w_reset) {
+            w_reset->is_dirty = 0;
+            w_reset = w_reset->next;
+        }
+
+        /* Desktop background (Steel Blue) */
+        fb_draw_rect(0, 0, screen_w, screen_h, 0x4682B4);
 
     /* Draw windows back to front */
     struct window *stack[16];
@@ -520,7 +526,21 @@ void wm_compose(void) {
     }
 
     draw_taskbar();
+    
+    /* After full redraw, we must SAVE the NEW background under the cursor */
+    save_bg(mx, my);
+    draw_cursor_overlay(mx, my);
+    wm_last_mx = mx; wm_last_my = my;
+    
     virtio_gpu_flush();
+} else if (mouse_moved) {
+    /* Only mouse moved - optimized sprite update */
+    restore_bg();
+    save_bg(mx, my);
+    draw_cursor_overlay(mx, my);
+    wm_last_mx = mx; wm_last_my = my;
+    virtio_gpu_flush();
+}
 }
 
 static void wm_task(void *arg) {

@@ -159,6 +159,10 @@ void init_main(void *arg) {
     // Always try to start GUI for now, even if input fails
     virtio_input_init();
     
+    // Initialize VFS
+    extern void files_init(void);
+    files_init();
+
     init_puts("[init] GUI subsystem starting...\n");
     wm_init();
     wm_start_task();

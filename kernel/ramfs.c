@@ -319,3 +319,9 @@ int ramfs_import(const char *path) {
     kfree(buf);
     return 0;
 }
+
+int ramfs_get_size(const char *name) {
+    struct ram_node *n = find_node(name);
+    if (!n) return -1;
+    return (int)n->size;
+}

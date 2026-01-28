@@ -68,10 +68,8 @@ void cursor_task(void *arg) {
         input_get_mouse_state(&nx, &ny, &btn);
         
         if (nx != last_x || ny != last_y) {
-            restore_bg();
-            save_bg(nx, ny);
-            draw_cursor_overlay(nx, ny);
-            virtio_gpu_flush();
+            /* Now handled by WM to ensure top-most layering */
+            task_wake_event(WM_EVENT_ID);
         }
     }
 }

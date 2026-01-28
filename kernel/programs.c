@@ -21,6 +21,8 @@ static struct prog_entry prog_table[] = {
     {"tail", prog_tail},
     {"more", prog_more},
     {"tree", prog_tree},
+    {"edit", prog_edit},
+    {"vim", prog_edit},
     {NULL, NULL}
 };
 

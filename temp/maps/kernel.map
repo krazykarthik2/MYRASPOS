@@ -5,7 +5,7 @@ Merging program properties
 Discarded input sections
 
  .note.gnu.property
-                0x0000000000000000        0x0 temp/objects/keyboard_tester_app.o
+                0x0000000000000000        0x0 temp/objects/files.o
 
 Memory Configuration
 
@@ -62,9 +62,12 @@ LOAD temp/objects/calculator_app.o
 LOAD temp/objects/files_app.o
 LOAD temp/objects/cursor.o
 LOAD temp/objects/keyboard_tester_app.o
+LOAD temp/objects/v_edit.o
+LOAD temp/objects/edit.o
+LOAD temp/objects/files.o
                 0x0000000040800000                . = 0x40800000
 
-.text           0x0000000040800000    0x1db28
+.text           0x0000000040800000    0x1f06c
  *(.text.boot)
  .text.boot     0x0000000040800000       0x80 temp/objects/start.o
                 0x0000000040800000                _start
@@ -104,7 +107,7 @@ LOAD temp/objects/keyboard_tester_app.o
                 0x00000000408027f8                kmalloc_init
                 0x000000004080287c                kmalloc
                 0x0000000040802bbc                kfree
- .text          0x0000000040802dec     0x1300 temp/objects/ramfs.o
+ .text          0x0000000040802dec     0x133c temp/objects/ramfs.o
                 0x0000000040802e3c                ramfs_init
                 0x0000000040802fc8                ramfs_create
                 0x000000004080306c                ramfs_mkdir
@@ -116,422 +119,445 @@ LOAD temp/objects/keyboard_tester_app.o
                 0x00000000408039b0                ramfs_remove_recursive
                 0x0000000040803b3c                ramfs_export
                 0x0000000040803e74                ramfs_import
- .text          0x00000000408040ec      0xebc temp/objects/lib.o
-                0x00000000408040ec                memset
-                0x0000000040804140                memcpy
-                0x00000000408041a4                memmove
-                0x000000004080428c                memcmp
-                0x0000000040804330                strncpy
-                0x00000000408043e0                strcat
-                0x0000000040804450                strrchr
-                0x00000000408044b0                strncmp
-                0x000000004080456c                strlen
-                0x00000000408045b0                strcmp
-                0x0000000040804620                strchr
-                0x000000004080467c                strstr
-                0x0000000040804744                strcpy
-                0x0000000040804794                strtok
-                0x000000004080492c                atoi
-                0x0000000040804a28                levenshtein_distance
-                0x0000000040804c40                tolower
-                0x0000000040804c78                strcasestr
-                0x0000000040804d7c                levenshtein_distance_ci
- .text          0x0000000040804fa8      0x750 temp/objects/syscall.o
-                0x0000000040804fa8                syscall_init
-                0x0000000040804fec                syscall_register
-                0x000000004080502c                syscall_handle
-                0x0000000040805584                syscall_register_defaults
- .text          0x00000000408056f8      0x140 temp/objects/timer.o
-                0x00000000408056f8                timer_init
-                0x0000000040805774                timer_get_ms
-                0x00000000408057a4                timer_sleep_ms
-                0x00000000408057dc                timer_poll_and_advance
- .text          0x0000000040805838      0x410 temp/objects/irq.o
-                0x0000000040805838                irq_init
-                0x0000000040805920                irq_unmask
-                0x0000000040805a0c                irq_register
-                0x0000000040805ae0                irq_dispatch
-                0x0000000040805ba4                irq_poll_and_dispatch
-                0x0000000040805bd0                irq_entry_c
- .text          0x0000000040805c48     0x1060 temp/objects/framebuffer.o
-                0x0000000040805cc0                fb_init
-                0x0000000040805dcc                fb_is_init
-                0x0000000040805ddc                fb_get_res
-                0x0000000040805e34                fb_fill
-                0x0000000040805f00                fb_set_pixel
-                0x0000000040805fa0                fb_get_pixel
-                0x0000000040806040                fb_draw_rect
-                0x00000000408061e4                fb_draw_rect_outline
-                0x00000000408062f4                fb_draw_hline
-                0x000000004080637c                fb_draw_vline
-                0x000000004080643c                fb_draw_text
-                0x00000000408068d0                fb_put_text_centered
-                0x0000000040806a4c                fb_puts
- .text          0x0000000040806ca8     0x2064 temp/objects/virtio.o
-                0x0000000040806db0                virtio_dcache_invalidate
-                0x0000000040806e10                virtio_flush_dcache
-                0x00000000408071a0                virtio_init
-                0x00000000408071cc                virtio_gpu_init
-                0x0000000040807a48                virtio_gpu_flush
-                0x0000000040807bbc                virtio_input_init
-                0x00000000408082ac                virtio_blk_init
-                0x0000000040808608                virtio_blk_rw
-                0x000000004080896c                virtio_input_handle_dev
-                0x0000000040808c2c                virtio_input_poll
-                0x0000000040808c88                virtio_input_irq_handler
-                0x0000000040808cec                virtio_gpu_get_width
-                0x0000000040808cfc                virtio_gpu_get_height
- .text          0x0000000040808d0c      0x604 temp/objects/init.o
-                0x0000000040808d0c                init_puts
-                0x0000000040808d3c                init_getc
-                0x0000000040808d64                init_ramfs_create
-                0x0000000040808d90                init_ramfs_read
-                0x0000000040808dc8                init_ramfs_remove
-                0x0000000040808df4                init_ramfs_mkdir
-                0x0000000040808e20                init_ramfs_list
-                0x0000000040808e58                init_ramfs_export
-                0x0000000040808e84                init_ramfs_import
-                0x0000000040808eb0                init_ramfs_remove_recursive
-                0x0000000040808edc                init_service_load_all
-                0x0000000040808f00                init_service_load_unit
-                0x0000000040808f2c                init_service_start
-                0x0000000040808f58                init_service_stop
-                0x0000000040808f84                init_service_restart
-                0x0000000040808fb0                init_service_reload
-                0x0000000040808fdc                init_service_enable
-                0x0000000040809008                init_service_disable
-                0x0000000040809034                init_service_status
-                0x000000004080906c                init_ramfs_write
-                0x00000000408091bc                init_start_shell
-                0x00000000408091e8                init_main
- .text          0x0000000040809310      0x158 temp/objects/programs.o
-                0x0000000040809310                program_lookup
-                0x00000000408093b4                program_list
- .text          0x0000000040809468      0x14c temp/objects/echo.o
-                0x0000000040809468                prog_echo
- .text          0x00000000408095b4       0xfc temp/objects/help.o
-                0x00000000408095b4                prog_help
- .text          0x00000000408096b0       0xf0 temp/objects/touch.o
-                0x00000000408096b0                prog_touch
- .text          0x00000000408097a0      0x258 temp/objects/write.o
-                0x00000000408097a0                prog_write
- .text          0x00000000408099f8       0xf0 temp/objects/cat.o
-                0x00000000408099f8                prog_cat
- .text          0x0000000040809ae8      0x690 temp/objects/ls.o
-                0x0000000040809ae8                prog_ls
- .text          0x000000004080a178      0x21c temp/objects/rm.o
-                0x000000004080a178                prog_rm
- .text          0x000000004080a394      0x158 temp/objects/mkdir.o
-                0x000000004080a394                prog_mkdir
- .text          0x000000004080a4ec       0xf0 temp/objects/rmdir.o
-                0x000000004080a4ec                prog_rmdir
- .text          0x000000004080a5dc      0x1c0 temp/objects/cp.o
-                0x000000004080a5dc                prog_cp
- .text          0x000000004080a79c      0x1dc temp/objects/mv.o
-                0x000000004080a79c                prog_mv
- .text          0x000000004080a978      0x460 temp/objects/grep.o
-                0x000000004080aa70                prog_grep
- .text          0x000000004080add8      0x2bc temp/objects/head.o
-                0x000000004080add8                prog_head
- .text          0x000000004080b094      0x324 temp/objects/tail.o
-                0x000000004080b094                prog_tail
- .text          0x000000004080b3b8      0x31c temp/objects/more.o
-                0x000000004080b3b8                prog_more
- .text          0x000000004080b6d4      0xa5c temp/objects/tree.o
-                0x000000004080ba9c                prog_tree
- .text          0x000000004080c130     0x5af0 temp/objects/shell.o
-                0x000000004080c130                init_resolve_path
-                0x00000000408111e4                shell_main
-                0x0000000040811844                shell_exec
- .text          0x0000000040811c20     0x1d34 temp/objects/sched.o
-                0x0000000040811c58                scheduler_request_preempt
-                0x0000000040811c70                scheduler_init
-                0x0000000040811cf8                task_create_with_stack
-                0x00000000408122c8                task_create
-                0x0000000040812554                schedule
-                0x0000000040812c20                yield
-                0x0000000040812c38                task_exists
-                0x0000000040812dc4                task_kill
-                0x0000000040812ec8                task_exit
-                0x0000000040812f34                task_current_id
-                0x0000000040812f64                task_set_tty
-                0x0000000040812ff8                task_get_tty
-                0x0000000040813088                task_set_fn_null
-                0x000000004081311c                task_set_parent
-                0x00000000408131b8                task_block_current_until
-                0x0000000040813244                task_wait_event
-                0x0000000040813334                task_wake_event
-                0x0000000040813488                scheduler_tick_advance
-                0x00000000408135d4                scheduler_get_tick
-                0x00000000408135e4                task_stats
-                0x00000000408137f0                task_list
-                0x00000000408138ac                scheduler_ret_from_fork_debug
-                0x0000000040813920                scheduler_switch_debug
- .text          0x0000000040813954      0x29c temp/objects/panic.o
-                0x0000000040813a40                panic_with_trace
-                0x0000000040813b24                exception_c_handler
- .text          0x0000000040813bf0     0x1e24 temp/objects/service.o
-                0x000000004081448c                services_init
-                0x00000000408144f4                service_load_unit
-                0x0000000040814b00                services_load_all
-                0x0000000040814c80                service_start
-                0x0000000040815028                service_stop
-                0x000000004081509c                service_restart
-                0x00000000408150c0                service_reload
-                0x000000004081523c                service_enable
-                0x0000000040815360                service_disable
-                0x0000000040815480                service_status
- .text          0x0000000040815a14      0x3c4 temp/objects/glob.o
-                0x0000000040815bb0                glob_match
- .text          0x0000000040815dd8      0x534 temp/objects/pty.o
-                0x0000000040815e10                pty_alloc
-                0x0000000040815e64                pty_write_in
-                0x0000000040815ef8                pty_read_in
-                0x0000000040815f98                pty_write_out
-                0x0000000040816030                pty_read_out
-                0x00000000408160d4                pty_has_out
-                0x0000000040816130                pty_has_in
-                0x000000004081618c                pty_free
-                0x00000000408161b8                pty_getline
- .text          0x000000004081630c      0x6e4 temp/objects/input.o
-                0x00000000408163b4                input_init
-                0x000000004081642c                input_get_mouse_state
-                0x00000000408164f0                input_push_event
-                0x000000004081686c                input_pop_key_event
-                0x0000000040816914                input_pop_mouse_event
-                0x00000000408169bc                input_pop_event
- .text          0x00000000408169f0     0x1b30 temp/objects/wm.o
-                0x0000000040816a70                wm_init
-                0x0000000040816b38                wm_create_window
-                0x0000000040816ce8                wm_close_window
-                0x0000000040816df4                wm_get_mouse_state
-                0x0000000040816eec                wm_focus_window
-                0x0000000040816f58                wm_request_render
-                0x0000000040816f94                wm_draw_rect
-                0x0000000040817138                wm_draw_text
-                0x000000004081726c                wm_is_focused
-                0x00000000408172ac                wm_pop_key_event
-                0x0000000040817a24                wm_set_state
-                0x0000000040817c24                wm_compose
-                0x00000000408184e4                wm_start_task
- .text          0x0000000040818520      0x7d4 temp/objects/terminal_app.o
-                0x0000000040818a58                terminal_app_start
- .text          0x0000000040818cf4     0x108c temp/objects/myra_app.o
-                0x0000000040819b94                myra_app_open
-                0x0000000040819d3c                myra_app_toggle
- .text          0x0000000040819d80     0x14e4 temp/objects/calculator_app.o
-                0x000000004081b164                calculator_app_start
- .text          0x000000004081b264     0x16b0 temp/objects/files_app.o
-                0x000000004081c6fc                files_app_start
- .text          0x000000004081c914      0x4dc temp/objects/cursor.o
-                0x000000004081c914                restore_bg
-                0x000000004081c9dc                save_bg
-                0x000000004081caac                draw_cursor_overlay
-                0x000000004081cd14                cursor_task
-                0x000000004081cdc0                cursor_init
- .text          0x000000004081cdf0      0xd38 temp/objects/keyboard_tester_app.o
-                0x000000004081da8c                keyboard_tester_app_start
+                0x00000000408040ec                ramfs_get_size
+ .text          0x0000000040804128      0xebc temp/objects/lib.o
+                0x0000000040804128                memset
+                0x000000004080417c                memcpy
+                0x00000000408041e0                memmove
+                0x00000000408042c8                memcmp
+                0x000000004080436c                strncpy
+                0x000000004080441c                strcat
+                0x000000004080448c                strrchr
+                0x00000000408044ec                strncmp
+                0x00000000408045a8                strlen
+                0x00000000408045ec                strcmp
+                0x000000004080465c                strchr
+                0x00000000408046b8                strstr
+                0x0000000040804780                strcpy
+                0x00000000408047d0                strtok
+                0x0000000040804968                atoi
+                0x0000000040804a64                levenshtein_distance
+                0x0000000040804c7c                tolower
+                0x0000000040804cb4                strcasestr
+                0x0000000040804db8                levenshtein_distance_ci
+ .text          0x0000000040804fe4      0x750 temp/objects/syscall.o
+                0x0000000040804fe4                syscall_init
+                0x0000000040805028                syscall_register
+                0x0000000040805068                syscall_handle
+                0x00000000408055c0                syscall_register_defaults
+ .text          0x0000000040805734      0x140 temp/objects/timer.o
+                0x0000000040805734                timer_init
+                0x00000000408057b0                timer_get_ms
+                0x00000000408057e0                timer_sleep_ms
+                0x0000000040805818                timer_poll_and_advance
+ .text          0x0000000040805874      0x410 temp/objects/irq.o
+                0x0000000040805874                irq_init
+                0x000000004080595c                irq_unmask
+                0x0000000040805a48                irq_register
+                0x0000000040805b1c                irq_dispatch
+                0x0000000040805be0                irq_poll_and_dispatch
+                0x0000000040805c0c                irq_entry_c
+ .text          0x0000000040805c84     0x1060 temp/objects/framebuffer.o
+                0x0000000040805cfc                fb_init
+                0x0000000040805e08                fb_is_init
+                0x0000000040805e18                fb_get_res
+                0x0000000040805e70                fb_fill
+                0x0000000040805f3c                fb_set_pixel
+                0x0000000040805fdc                fb_get_pixel
+                0x000000004080607c                fb_draw_rect
+                0x0000000040806220                fb_draw_rect_outline
+                0x0000000040806330                fb_draw_hline
+                0x00000000408063b8                fb_draw_vline
+                0x0000000040806478                fb_draw_text
+                0x000000004080690c                fb_put_text_centered
+                0x0000000040806a88                fb_puts
+ .text          0x0000000040806ce4     0x2064 temp/objects/virtio.o
+                0x0000000040806dec                virtio_dcache_invalidate
+                0x0000000040806e4c                virtio_flush_dcache
+                0x00000000408071dc                virtio_init
+                0x0000000040807208                virtio_gpu_init
+                0x0000000040807a84                virtio_gpu_flush
+                0x0000000040807bf8                virtio_input_init
+                0x00000000408082e8                virtio_blk_init
+                0x0000000040808644                virtio_blk_rw
+                0x00000000408089a8                virtio_input_handle_dev
+                0x0000000040808c68                virtio_input_poll
+                0x0000000040808cc4                virtio_input_irq_handler
+                0x0000000040808d28                virtio_gpu_get_width
+                0x0000000040808d38                virtio_gpu_get_height
+ .text          0x0000000040808d48      0x608 temp/objects/init.o
+                0x0000000040808d48                init_puts
+                0x0000000040808d78                init_getc
+                0x0000000040808da0                init_ramfs_create
+                0x0000000040808dcc                init_ramfs_read
+                0x0000000040808e04                init_ramfs_remove
+                0x0000000040808e30                init_ramfs_mkdir
+                0x0000000040808e5c                init_ramfs_list
+                0x0000000040808e94                init_ramfs_export
+                0x0000000040808ec0                init_ramfs_import
+                0x0000000040808eec                init_ramfs_remove_recursive
+                0x0000000040808f18                init_service_load_all
+                0x0000000040808f3c                init_service_load_unit
+                0x0000000040808f68                init_service_start
+                0x0000000040808f94                init_service_stop
+                0x0000000040808fc0                init_service_restart
+                0x0000000040808fec                init_service_reload
+                0x0000000040809018                init_service_enable
+                0x0000000040809044                init_service_disable
+                0x0000000040809070                init_service_status
+                0x00000000408090a8                init_ramfs_write
+                0x00000000408091f8                init_start_shell
+                0x0000000040809224                init_main
+ .text          0x0000000040809350      0x158 temp/objects/programs.o
+                0x0000000040809350                program_lookup
+                0x00000000408093f4                program_list
+ .text          0x00000000408094a8      0x14c temp/objects/echo.o
+                0x00000000408094a8                prog_echo
+ .text          0x00000000408095f4       0xfc temp/objects/help.o
+                0x00000000408095f4                prog_help
+ .text          0x00000000408096f0       0xf0 temp/objects/touch.o
+                0x00000000408096f0                prog_touch
+ .text          0x00000000408097e0      0x258 temp/objects/write.o
+                0x00000000408097e0                prog_write
+ .text          0x0000000040809a38       0xf0 temp/objects/cat.o
+                0x0000000040809a38                prog_cat
+ .text          0x0000000040809b28      0x690 temp/objects/ls.o
+                0x0000000040809b28                prog_ls
+ .text          0x000000004080a1b8      0x21c temp/objects/rm.o
+                0x000000004080a1b8                prog_rm
+ .text          0x000000004080a3d4      0x158 temp/objects/mkdir.o
+                0x000000004080a3d4                prog_mkdir
+ .text          0x000000004080a52c       0xf0 temp/objects/rmdir.o
+                0x000000004080a52c                prog_rmdir
+ .text          0x000000004080a61c      0x1c0 temp/objects/cp.o
+                0x000000004080a61c                prog_cp
+ .text          0x000000004080a7dc      0x1dc temp/objects/mv.o
+                0x000000004080a7dc                prog_mv
+ .text          0x000000004080a9b8      0x460 temp/objects/grep.o
+                0x000000004080aab0                prog_grep
+ .text          0x000000004080ae18      0x2bc temp/objects/head.o
+                0x000000004080ae18                prog_head
+ .text          0x000000004080b0d4      0x324 temp/objects/tail.o
+                0x000000004080b0d4                prog_tail
+ .text          0x000000004080b3f8      0x31c temp/objects/more.o
+                0x000000004080b3f8                prog_more
+ .text          0x000000004080b714      0xa5c temp/objects/tree.o
+                0x000000004080badc                prog_tree
+ .text          0x000000004080c170     0x5af0 temp/objects/shell.o
+                0x000000004080c170                init_resolve_path
+                0x0000000040811224                shell_main
+                0x0000000040811884                shell_exec
+ .text          0x0000000040811c60     0x1d34 temp/objects/sched.o
+                0x0000000040811c98                scheduler_request_preempt
+                0x0000000040811cb0                scheduler_init
+                0x0000000040811d38                task_create_with_stack
+                0x0000000040812308                task_create
+                0x0000000040812594                schedule
+                0x0000000040812c60                yield
+                0x0000000040812c78                task_exists
+                0x0000000040812e04                task_kill
+                0x0000000040812f08                task_exit
+                0x0000000040812f74                task_current_id
+                0x0000000040812fa4                task_set_tty
+                0x0000000040813038                task_get_tty
+                0x00000000408130c8                task_set_fn_null
+                0x000000004081315c                task_set_parent
+                0x00000000408131f8                task_block_current_until
+                0x0000000040813284                task_wait_event
+                0x0000000040813374                task_wake_event
+                0x00000000408134c8                scheduler_tick_advance
+                0x0000000040813614                scheduler_get_tick
+                0x0000000040813624                task_stats
+                0x0000000040813830                task_list
+                0x00000000408138ec                scheduler_ret_from_fork_debug
+                0x0000000040813960                scheduler_switch_debug
+ .text          0x0000000040813994      0x29c temp/objects/panic.o
+                0x0000000040813a80                panic_with_trace
+                0x0000000040813b64                exception_c_handler
+ .text          0x0000000040813c30     0x1e24 temp/objects/service.o
+                0x00000000408144cc                services_init
+                0x0000000040814534                service_load_unit
+                0x0000000040814b40                services_load_all
+                0x0000000040814cc0                service_start
+                0x0000000040815068                service_stop
+                0x00000000408150dc                service_restart
+                0x0000000040815100                service_reload
+                0x000000004081527c                service_enable
+                0x00000000408153a0                service_disable
+                0x00000000408154c0                service_status
+ .text          0x0000000040815a54      0x3c4 temp/objects/glob.o
+                0x0000000040815bf0                glob_match
+ .text          0x0000000040815e18      0x534 temp/objects/pty.o
+                0x0000000040815e50                pty_alloc
+                0x0000000040815ea4                pty_write_in
+                0x0000000040815f38                pty_read_in
+                0x0000000040815fd8                pty_write_out
+                0x0000000040816070                pty_read_out
+                0x0000000040816114                pty_has_out
+                0x0000000040816170                pty_has_in
+                0x00000000408161cc                pty_free
+                0x00000000408161f8                pty_getline
+ .text          0x000000004081634c      0x6e4 temp/objects/input.o
+                0x00000000408163f4                input_init
+                0x000000004081646c                input_get_mouse_state
+                0x0000000040816530                input_push_event
+                0x00000000408168ac                input_pop_key_event
+                0x0000000040816954                input_pop_mouse_event
+                0x00000000408169fc                input_pop_event
+ .text          0x0000000040816a30     0x1c20 temp/objects/wm.o
+                0x0000000040816ab0                wm_init
+                0x0000000040816b78                wm_create_window
+                0x0000000040816d28                wm_close_window
+                0x0000000040816e34                wm_get_mouse_state
+                0x0000000040816f2c                wm_focus_window
+                0x0000000040816f98                wm_request_render
+                0x0000000040816fd4                wm_draw_rect
+                0x0000000040817178                wm_draw_text
+                0x00000000408172ac                wm_is_focused
+                0x00000000408172ec                wm_pop_key_event
+                0x0000000040817a64                wm_set_state
+                0x0000000040817c64                wm_compose
+                0x0000000040818614                wm_start_task
+ .text          0x0000000040818650      0x7d4 temp/objects/terminal_app.o
+                0x0000000040818b88                terminal_app_start
+ .text          0x0000000040818e24     0x10ac temp/objects/myra_app.o
+                0x0000000040819ccc                myra_app_open
+                0x0000000040819e8c                myra_app_toggle
+ .text          0x0000000040819ed0     0x14e4 temp/objects/calculator_app.o
+                0x000000004081b2b4                calculator_app_start
+ .text          0x000000004081b3b4     0x16b0 temp/objects/files_app.o
+                0x000000004081c84c                files_app_start
+ .text          0x000000004081ca64      0x4c4 temp/objects/cursor.o
+                0x000000004081ca64                restore_bg
+                0x000000004081cb2c                save_bg
+                0x000000004081cbfc                draw_cursor_overlay
+                0x000000004081ce64                cursor_task
+                0x000000004081cef8                cursor_init
+ .text          0x000000004081cf28      0xd38 temp/objects/keyboard_tester_app.o
+                0x000000004081dbc4                keyboard_tester_app_start
+ .text          0x000000004081dc60      0xc80 temp/objects/v_edit.o
+                0x000000004081e7c8                editor_app_start
+ .text          0x000000004081e8e0       0x54 temp/objects/edit.o
+                0x000000004081e8e0                prog_edit
+ .text          0x000000004081e934      0x738 temp/objects/files.o
+                0x000000004081e934                files_init
+                0x000000004081ea08                files_open
+                0x000000004081ebd8                files_close
+                0x000000004081ec4c                files_read
+                0x000000004081ed4c                files_write
+                0x000000004081eeb8                files_seek
+                0x000000004081eff8                files_stat
 
-.iplt           0x000000004081db28        0x0
- .iplt          0x000000004081db28        0x0 temp/objects/start.o
+.iplt           0x000000004081f06c        0x0
+ .iplt          0x000000004081f06c        0x0 temp/objects/start.o
 
-.rodata         0x000000004081db28     0x27ca
+.rodata         0x000000004081f070     0x290d
  *(.rodata .rodata.*)
- .rodata        0x000000004081db28       0x5c temp/objects/mmu.o
- *fill*         0x000000004081db84        0x4 
- .rodata        0x000000004081db88       0xb9 temp/objects/diskfs.o
- *fill*         0x000000004081dc41        0x7 
- .rodata        0x000000004081dc48      0x1c9 temp/objects/kernel.o
- *fill*         0x000000004081de11        0x7 
- .rodata        0x000000004081de18       0x39 temp/objects/uart.o
- *fill*         0x000000004081de51        0x7 
- .rodata        0x000000004081de58      0x125 temp/objects/palloc.o
- *fill*         0x000000004081df7d        0x3 
- .rodata        0x000000004081df80       0xf2 temp/objects/kmalloc.o
- *fill*         0x000000004081e072        0x6 
- .rodata        0x000000004081e078        0x2 temp/objects/ramfs.o
- *fill*         0x000000004081e07a        0x6 
- .rodata        0x000000004081e080      0x304 temp/objects/framebuffer.o
- *fill*         0x000000004081e384        0x4 
- .rodata        0x000000004081e388      0x623 temp/objects/virtio.o
- *fill*         0x000000004081e9ab        0x5 
- .rodata        0x000000004081e9b0      0x1ba temp/objects/init.o
- *fill*         0x000000004081eb6a        0x6 
- .rodata        0x000000004081eb70       0x7d temp/objects/programs.o
- *fill*         0x000000004081ebed        0x3 
- .rodata        0x000000004081ebf0       0x26 temp/objects/touch.o
- *fill*         0x000000004081ec16        0x2 
- .rodata        0x000000004081ec18       0x2e temp/objects/write.o
- *fill*         0x000000004081ec46        0x2 
- .rodata        0x000000004081ec48       0x1e temp/objects/cat.o
- *fill*         0x000000004081ec66        0x2 
- .rodata        0x000000004081ec68       0x5c temp/objects/ls.o
- *fill*         0x000000004081ecc4        0x4 
- .rodata        0x000000004081ecc8       0x36 temp/objects/rm.o
- *fill*         0x000000004081ecfe        0x2 
- .rodata        0x000000004081ed00       0x24 temp/objects/mkdir.o
- *fill*         0x000000004081ed24        0x4 
- .rodata        0x000000004081ed28       0x26 temp/objects/rmdir.o
- *fill*         0x000000004081ed4e        0x2 
- .rodata        0x000000004081ed50       0x24 temp/objects/cp.o
- *fill*         0x000000004081ed74        0x4 
- .rodata        0x000000004081ed78       0x24 temp/objects/mv.o
- *fill*         0x000000004081ed9c        0x4 
- .rodata        0x000000004081eda0       0x1e temp/objects/grep.o
- *fill*         0x000000004081edbe        0x2 
- .rodata        0x000000004081edc0       0x22 temp/objects/tree.o
- *fill*         0x000000004081ede2        0x6 
- .rodata        0x000000004081ede8      0x5cb temp/objects/shell.o
- *fill*         0x000000004081f3b3        0x5 
- .rodata        0x000000004081f3b8      0x39d temp/objects/sched.o
- *fill*         0x000000004081f755        0x3 
- .rodata        0x000000004081f758       0x8a temp/objects/panic.o
- *fill*         0x000000004081f7e2        0x6 
- .rodata        0x000000004081f7e8      0x301 temp/objects/service.o
- *fill*         0x000000004081fae9        0x7 
- .rodata        0x000000004081faf0       0x37 temp/objects/pty.o
- *fill*         0x000000004081fb27        0x1 
- .rodata        0x000000004081fb28       0x26 temp/objects/wm.o
- *fill*         0x000000004081fb4e        0x2 
- .rodata        0x000000004081fb50      0x152 temp/objects/terminal_app.o
- *fill*         0x000000004081fca2        0x6 
- .rodata        0x000000004081fca8      0x151 temp/objects/myra_app.o
- *fill*         0x000000004081fdf9        0x7 
- .rodata        0x000000004081fe00      0x17b temp/objects/calculator_app.o
- *fill*         0x000000004081ff7b        0x5 
- .rodata        0x000000004081ff80      0x1d8 temp/objects/files_app.o
- .rodata        0x0000000040820158        0xf temp/objects/cursor.o
- *fill*         0x0000000040820167        0x1 
- .rodata        0x0000000040820168      0x18a temp/objects/keyboard_tester_app.o
+ .rodata        0x000000004081f070       0x5c temp/objects/mmu.o
+ *fill*         0x000000004081f0cc        0x4 
+ .rodata        0x000000004081f0d0       0xb9 temp/objects/diskfs.o
+ *fill*         0x000000004081f189        0x7 
+ .rodata        0x000000004081f190      0x1c9 temp/objects/kernel.o
+ *fill*         0x000000004081f359        0x7 
+ .rodata        0x000000004081f360       0x39 temp/objects/uart.o
+ *fill*         0x000000004081f399        0x7 
+ .rodata        0x000000004081f3a0      0x125 temp/objects/palloc.o
+ *fill*         0x000000004081f4c5        0x3 
+ .rodata        0x000000004081f4c8       0xf2 temp/objects/kmalloc.o
+ *fill*         0x000000004081f5ba        0x6 
+ .rodata        0x000000004081f5c0        0x2 temp/objects/ramfs.o
+ *fill*         0x000000004081f5c2        0x6 
+ .rodata        0x000000004081f5c8      0x304 temp/objects/framebuffer.o
+ *fill*         0x000000004081f8cc        0x4 
+ .rodata        0x000000004081f8d0      0x623 temp/objects/virtio.o
+ *fill*         0x000000004081fef3        0x5 
+ .rodata        0x000000004081fef8      0x1ba temp/objects/init.o
+ *fill*         0x00000000408200b2        0x6 
+ .rodata        0x00000000408200b8       0x8c temp/objects/programs.o
+ *fill*         0x0000000040820144        0x4 
+ .rodata        0x0000000040820148       0x26 temp/objects/touch.o
+ *fill*         0x000000004082016e        0x2 
+ .rodata        0x0000000040820170       0x2e temp/objects/write.o
+ *fill*         0x000000004082019e        0x2 
+ .rodata        0x00000000408201a0       0x1e temp/objects/cat.o
+ *fill*         0x00000000408201be        0x2 
+ .rodata        0x00000000408201c0       0x5c temp/objects/ls.o
+ *fill*         0x000000004082021c        0x4 
+ .rodata        0x0000000040820220       0x36 temp/objects/rm.o
+ *fill*         0x0000000040820256        0x2 
+ .rodata        0x0000000040820258       0x24 temp/objects/mkdir.o
+ *fill*         0x000000004082027c        0x4 
+ .rodata        0x0000000040820280       0x26 temp/objects/rmdir.o
+ *fill*         0x00000000408202a6        0x2 
+ .rodata        0x00000000408202a8       0x24 temp/objects/cp.o
+ *fill*         0x00000000408202cc        0x4 
+ .rodata        0x00000000408202d0       0x24 temp/objects/mv.o
+ *fill*         0x00000000408202f4        0x4 
+ .rodata        0x00000000408202f8       0x1e temp/objects/grep.o
+ *fill*         0x0000000040820316        0x2 
+ .rodata        0x0000000040820318       0x22 temp/objects/tree.o
+ *fill*         0x000000004082033a        0x6 
+ .rodata        0x0000000040820340      0x5cb temp/objects/shell.o
+ *fill*         0x000000004082090b        0x5 
+ .rodata        0x0000000040820910      0x39d temp/objects/sched.o
+ *fill*         0x0000000040820cad        0x3 
+ .rodata        0x0000000040820cb0       0x8a temp/objects/panic.o
+ *fill*         0x0000000040820d3a        0x6 
+ .rodata        0x0000000040820d40      0x301 temp/objects/service.o
+ *fill*         0x0000000040821041        0x7 
+ .rodata        0x0000000040821048       0x37 temp/objects/pty.o
+ *fill*         0x000000004082107f        0x1 
+ .rodata        0x0000000040821080       0x26 temp/objects/wm.o
+ *fill*         0x00000000408210a6        0x2 
+ .rodata        0x00000000408210a8      0x152 temp/objects/terminal_app.o
+ *fill*         0x00000000408211fa        0x6 
+ .rodata        0x0000000040821200      0x1f9 temp/objects/myra_app.o
+ *fill*         0x00000000408213f9        0x7 
+ .rodata        0x0000000040821400      0x17b temp/objects/calculator_app.o
+ *fill*         0x000000004082157b        0x5 
+ .rodata        0x0000000040821580      0x1d8 temp/objects/files_app.o
+ .rodata        0x0000000040821758        0xf temp/objects/cursor.o
+ *fill*         0x0000000040821767        0x1 
+ .rodata        0x0000000040821768      0x18a temp/objects/keyboard_tester_app.o
+ *fill*         0x00000000408218f2        0x6 
+ .rodata        0x00000000408218f8       0x85 temp/objects/v_edit.o
 
-.rela.dyn       0x00000000408202f8        0x0
- .rela.iplt     0x00000000408202f8        0x0 temp/objects/start.o
+.rela.dyn       0x0000000040821980        0x0
+ .rela.iplt     0x0000000040821980        0x0 temp/objects/start.o
  .rela.text.boot
-                0x00000000408202f8        0x0 temp/objects/start.o
- .rela.text     0x00000000408202f8        0x0 temp/objects/start.o
+                0x0000000040821980        0x0 temp/objects/start.o
+ .rela.text     0x0000000040821980        0x0 temp/objects/start.o
 
-.data           0x0000000040821000      0x5e2
+.data           0x0000000040822000      0x69a
  *(.data .data.*)
- .data          0x0000000040821000        0x0 temp/objects/start.o
- .data          0x0000000040821000        0x0 temp/objects/mmu.o
- .data          0x0000000040821000        0x4 temp/objects/diskfs.o
- .data          0x0000000040821004        0x0 temp/objects/vectors.o
- .data          0x0000000040821004        0x0 temp/objects/swtch.o
- .data          0x0000000040821004        0x0 temp/objects/kernel.o
- .data          0x0000000040821004        0x0 temp/objects/uart.o
- .data          0x0000000040821004        0x0 temp/objects/palloc.o
- .data          0x0000000040821004        0x0 temp/objects/kmalloc.o
- .data          0x0000000040821004        0x0 temp/objects/ramfs.o
- .data          0x0000000040821004        0x0 temp/objects/lib.o
- .data          0x0000000040821004        0x0 temp/objects/syscall.o
- .data          0x0000000040821004        0x0 temp/objects/timer.o
- .data          0x0000000040821004        0x0 temp/objects/irq.o
- .data          0x0000000040821004        0x0 temp/objects/framebuffer.o
- .data          0x0000000040821004        0x4 temp/objects/virtio.o
- .data          0x0000000040821008        0x0 temp/objects/init.o
- .data          0x0000000040821008      0x110 temp/objects/programs.o
- .data          0x0000000040821118        0x0 temp/objects/echo.o
- .data          0x0000000040821118        0x0 temp/objects/help.o
- .data          0x0000000040821118        0x0 temp/objects/touch.o
- .data          0x0000000040821118        0x0 temp/objects/write.o
- .data          0x0000000040821118        0x0 temp/objects/cat.o
- .data          0x0000000040821118        0x0 temp/objects/ls.o
- .data          0x0000000040821118        0x0 temp/objects/rm.o
- .data          0x0000000040821118        0x0 temp/objects/mkdir.o
- .data          0x0000000040821118        0x0 temp/objects/rmdir.o
- .data          0x0000000040821118        0x0 temp/objects/cp.o
- .data          0x0000000040821118        0x0 temp/objects/mv.o
- .data          0x0000000040821118        0x0 temp/objects/grep.o
- .data          0x0000000040821118        0x0 temp/objects/head.o
- .data          0x0000000040821118        0x0 temp/objects/tail.o
- .data          0x0000000040821118        0x0 temp/objects/more.o
- .data          0x0000000040821118        0x0 temp/objects/tree.o
- .data          0x0000000040821118      0x220 temp/objects/shell.o
- .data          0x0000000040821338        0x4 temp/objects/sched.o
- .data          0x000000004082133c        0x0 temp/objects/panic.o
- .data          0x000000004082133c        0x0 temp/objects/service.o
- .data          0x000000004082133c        0x0 temp/objects/glob.o
- .data          0x000000004082133c        0x0 temp/objects/pty.o
- .data          0x000000004082133c        0x8 temp/objects/input.o
- *fill*         0x0000000040821344        0x4 
- .data          0x0000000040821348       0x82 temp/objects/wm.o
- .data          0x00000000408213ca        0x0 temp/objects/terminal_app.o
- *fill*         0x00000000408213ca        0x6 
- .data          0x00000000408213d0      0x10a temp/objects/myra_app.o
- .data          0x00000000408214da        0x0 temp/objects/calculator_app.o
- *fill*         0x00000000408214da        0x6 
- .data          0x00000000408214e0       0x7a temp/objects/files_app.o
- *fill*         0x000000004082155a        0x2 
- .data          0x000000004082155c        0x8 temp/objects/cursor.o
- *fill*         0x0000000040821564        0x4 
- .data          0x0000000040821568       0x7a temp/objects/keyboard_tester_app.o
+ .data          0x0000000040822000        0x0 temp/objects/start.o
+ .data          0x0000000040822000        0x0 temp/objects/mmu.o
+ .data          0x0000000040822000        0x4 temp/objects/diskfs.o
+ .data          0x0000000040822004        0x0 temp/objects/vectors.o
+ .data          0x0000000040822004        0x0 temp/objects/swtch.o
+ .data          0x0000000040822004        0x0 temp/objects/kernel.o
+ .data          0x0000000040822004        0x0 temp/objects/uart.o
+ .data          0x0000000040822004        0x0 temp/objects/palloc.o
+ .data          0x0000000040822004        0x0 temp/objects/kmalloc.o
+ .data          0x0000000040822004        0x0 temp/objects/ramfs.o
+ .data          0x0000000040822004        0x0 temp/objects/lib.o
+ .data          0x0000000040822004        0x0 temp/objects/syscall.o
+ .data          0x0000000040822004        0x0 temp/objects/timer.o
+ .data          0x0000000040822004        0x0 temp/objects/irq.o
+ .data          0x0000000040822004        0x0 temp/objects/framebuffer.o
+ .data          0x0000000040822004        0x4 temp/objects/virtio.o
+ .data          0x0000000040822008        0x0 temp/objects/init.o
+ .data          0x0000000040822008      0x130 temp/objects/programs.o
+ .data          0x0000000040822138        0x0 temp/objects/echo.o
+ .data          0x0000000040822138        0x0 temp/objects/help.o
+ .data          0x0000000040822138        0x0 temp/objects/touch.o
+ .data          0x0000000040822138        0x0 temp/objects/write.o
+ .data          0x0000000040822138        0x0 temp/objects/cat.o
+ .data          0x0000000040822138        0x0 temp/objects/ls.o
+ .data          0x0000000040822138        0x0 temp/objects/rm.o
+ .data          0x0000000040822138        0x0 temp/objects/mkdir.o
+ .data          0x0000000040822138        0x0 temp/objects/rmdir.o
+ .data          0x0000000040822138        0x0 temp/objects/cp.o
+ .data          0x0000000040822138        0x0 temp/objects/mv.o
+ .data          0x0000000040822138        0x0 temp/objects/grep.o
+ .data          0x0000000040822138        0x0 temp/objects/head.o
+ .data          0x0000000040822138        0x0 temp/objects/tail.o
+ .data          0x0000000040822138        0x0 temp/objects/more.o
+ .data          0x0000000040822138        0x0 temp/objects/tree.o
+ .data          0x0000000040822138      0x220 temp/objects/shell.o
+ .data          0x0000000040822358        0x4 temp/objects/sched.o
+ .data          0x000000004082235c        0x0 temp/objects/panic.o
+ .data          0x000000004082235c        0x0 temp/objects/service.o
+ .data          0x000000004082235c        0x0 temp/objects/glob.o
+ .data          0x000000004082235c        0x0 temp/objects/pty.o
+ .data          0x000000004082235c        0x8 temp/objects/input.o
+ *fill*         0x0000000040822364        0x4 
+ .data          0x0000000040822368       0x8a temp/objects/wm.o
+ .data          0x00000000408223f2        0x0 temp/objects/terminal_app.o
+ *fill*         0x00000000408223f2        0x6 
+ .data          0x00000000408223f8      0x15a temp/objects/myra_app.o
+ .data          0x0000000040822552        0x0 temp/objects/calculator_app.o
+ *fill*         0x0000000040822552        0x6 
+ .data          0x0000000040822558       0x7a temp/objects/files_app.o
+ *fill*         0x00000000408225d2        0x2 
+ .data          0x00000000408225d4        0x8 temp/objects/cursor.o
+ *fill*         0x00000000408225dc        0x4 
+ .data          0x00000000408225e0       0x7a temp/objects/keyboard_tester_app.o
+ *fill*         0x000000004082265a        0x6 
+ .data          0x0000000040822660       0x3a temp/objects/v_edit.o
+ .data          0x000000004082269a        0x0 temp/objects/edit.o
+ .data          0x000000004082269a        0x0 temp/objects/files.o
 
-.igot.plt       0x00000000408215e8        0x0
- .igot.plt      0x00000000408215e8        0x0 temp/objects/start.o
+.igot.plt       0x00000000408226a0        0x0
+ .igot.plt      0x00000000408226a0        0x0 temp/objects/start.o
 
-.bss            0x0000000040822000    0x246c2
-                0x0000000040822000                __bss_start = .
+.bss            0x0000000040823000    0x259d0
+                0x0000000040823000                __bss_start = .
  *(.bss .bss.*)
- .bss           0x0000000040822000        0x0 temp/objects/start.o
- .bss           0x0000000040822000        0x8 temp/objects/mmu.o
- .bss           0x0000000040822008     0x284c temp/objects/diskfs.o
- .bss           0x0000000040824854        0x0 temp/objects/vectors.o
- .bss           0x0000000040824854        0x0 temp/objects/swtch.o
- .bss           0x0000000040824854        0x0 temp/objects/kernel.o
- .bss           0x0000000040824854        0x0 temp/objects/uart.o
- *fill*         0x0000000040824854        0x4 
- .bss           0x0000000040824858     0x8010 temp/objects/palloc.o
- .bss           0x000000004082c868        0x8 temp/objects/kmalloc.o
- .bss           0x000000004082c870      0x90c temp/objects/ramfs.o
- *fill*         0x000000004082d17c        0x4 
- .bss           0x000000004082d180        0x8 temp/objects/lib.o
- .bss           0x000000004082d188      0x200 temp/objects/syscall.o
- .bss           0x000000004082d388       0x10 temp/objects/timer.o
- .bss           0x000000004082d398      0x180 temp/objects/irq.o
- .bss           0x000000004082d518     0x9124 temp/objects/framebuffer.o
- *fill*         0x000000004083663c      0x9c4 
- .bss           0x0000000040837000     0xe000 temp/objects/virtio.o
- .bss           0x0000000040845000        0x4 temp/objects/init.o
- *fill*         0x0000000040845004        0x4 
- .bss           0x0000000040845008       0x80 temp/objects/programs.o
- .bss           0x0000000040845088        0x0 temp/objects/echo.o
- .bss           0x0000000040845088        0x0 temp/objects/help.o
- .bss           0x0000000040845088        0x0 temp/objects/touch.o
- .bss           0x0000000040845088        0x0 temp/objects/write.o
- .bss           0x0000000040845088        0x0 temp/objects/cat.o
- .bss           0x0000000040845088        0x0 temp/objects/ls.o
- .bss           0x0000000040845088        0x0 temp/objects/rm.o
- .bss           0x0000000040845088        0x0 temp/objects/mkdir.o
- .bss           0x0000000040845088        0x0 temp/objects/rmdir.o
- .bss           0x0000000040845088        0x0 temp/objects/cp.o
- .bss           0x0000000040845088        0x0 temp/objects/mv.o
- .bss           0x0000000040845088        0x0 temp/objects/grep.o
- .bss           0x0000000040845088        0x0 temp/objects/head.o
- .bss           0x0000000040845088        0x0 temp/objects/tail.o
- .bss           0x0000000040845088        0x0 temp/objects/more.o
- .bss           0x0000000040845088        0x0 temp/objects/tree.o
- .bss           0x0000000040845088        0x8 temp/objects/shell.o
-                0x0000000040845088                shell_sigint
- .bss           0x0000000040845090      0x10c temp/objects/sched.o
- .bss           0x000000004084519c        0x0 temp/objects/panic.o
- *fill*         0x000000004084519c        0x4 
- .bss           0x00000000408451a0        0x8 temp/objects/service.o
- .bss           0x00000000408451a8        0x0 temp/objects/glob.o
- .bss           0x00000000408451a8        0x0 temp/objects/pty.o
- .bss           0x00000000408451a8     0x1020 temp/objects/input.o
- .bss           0x00000000408461c8       0x38 temp/objects/wm.o
- .bss           0x0000000040846200        0x8 temp/objects/terminal_app.o
- .bss           0x0000000040846208        0xc temp/objects/myra_app.o
- *fill*         0x0000000040846214        0x4 
- .bss           0x0000000040846218        0x8 temp/objects/calculator_app.o
- .bss           0x0000000040846220      0x110 temp/objects/files_app.o
- .bss           0x0000000040846330      0x390 temp/objects/cursor.o
- .bss           0x00000000408466c0        0x2 temp/objects/keyboard_tester_app.o
+ .bss           0x0000000040823000        0x0 temp/objects/start.o
+ .bss           0x0000000040823000        0x8 temp/objects/mmu.o
+ .bss           0x0000000040823008     0x284c temp/objects/diskfs.o
+ .bss           0x0000000040825854        0x0 temp/objects/vectors.o
+ .bss           0x0000000040825854        0x0 temp/objects/swtch.o
+ .bss           0x0000000040825854        0x0 temp/objects/kernel.o
+ .bss           0x0000000040825854        0x0 temp/objects/uart.o
+ *fill*         0x0000000040825854        0x4 
+ .bss           0x0000000040825858     0x8010 temp/objects/palloc.o
+ .bss           0x000000004082d868        0x8 temp/objects/kmalloc.o
+ .bss           0x000000004082d870      0x90c temp/objects/ramfs.o
+ *fill*         0x000000004082e17c        0x4 
+ .bss           0x000000004082e180        0x8 temp/objects/lib.o
+ .bss           0x000000004082e188      0x200 temp/objects/syscall.o
+ .bss           0x000000004082e388       0x10 temp/objects/timer.o
+ .bss           0x000000004082e398      0x180 temp/objects/irq.o
+ .bss           0x000000004082e518     0x9124 temp/objects/framebuffer.o
+ *fill*         0x000000004083763c      0x9c4 
+ .bss           0x0000000040838000     0xe000 temp/objects/virtio.o
+ .bss           0x0000000040846000        0x4 temp/objects/init.o
+ *fill*         0x0000000040846004        0x4 
+ .bss           0x0000000040846008       0x80 temp/objects/programs.o
+ .bss           0x0000000040846088        0x0 temp/objects/echo.o
+ .bss           0x0000000040846088        0x0 temp/objects/help.o
+ .bss           0x0000000040846088        0x0 temp/objects/touch.o
+ .bss           0x0000000040846088        0x0 temp/objects/write.o
+ .bss           0x0000000040846088        0x0 temp/objects/cat.o
+ .bss           0x0000000040846088        0x0 temp/objects/ls.o
+ .bss           0x0000000040846088        0x0 temp/objects/rm.o
+ .bss           0x0000000040846088        0x0 temp/objects/mkdir.o
+ .bss           0x0000000040846088        0x0 temp/objects/rmdir.o
+ .bss           0x0000000040846088        0x0 temp/objects/cp.o
+ .bss           0x0000000040846088        0x0 temp/objects/mv.o
+ .bss           0x0000000040846088        0x0 temp/objects/grep.o
+ .bss           0x0000000040846088        0x0 temp/objects/head.o
+ .bss           0x0000000040846088        0x0 temp/objects/tail.o
+ .bss           0x0000000040846088        0x0 temp/objects/more.o
+ .bss           0x0000000040846088        0x0 temp/objects/tree.o
+ .bss           0x0000000040846088        0x8 temp/objects/shell.o
+                0x0000000040846088                shell_sigint
+ .bss           0x0000000040846090      0x10c temp/objects/sched.o
+ .bss           0x000000004084619c        0x0 temp/objects/panic.o
+ *fill*         0x000000004084619c        0x4 
+ .bss           0x00000000408461a0        0x8 temp/objects/service.o
+ .bss           0x00000000408461a8        0x0 temp/objects/glob.o
+ .bss           0x00000000408461a8        0x0 temp/objects/pty.o
+ .bss           0x00000000408461a8     0x1020 temp/objects/input.o
+ .bss           0x00000000408471c8       0x38 temp/objects/wm.o
+ .bss           0x0000000040847200        0x8 temp/objects/terminal_app.o
+ .bss           0x0000000040847208        0xc temp/objects/myra_app.o
+ *fill*         0x0000000040847214        0x4 
+ .bss           0x0000000040847218        0x8 temp/objects/calculator_app.o
+ .bss           0x0000000040847220      0x110 temp/objects/files_app.o
+ .bss           0x0000000040847330      0x390 temp/objects/cursor.o
+ .bss           0x00000000408476c0        0x2 temp/objects/keyboard_tester_app.o
+ *fill*         0x00000000408476c2        0x6 
+ .bss           0x00000000408476c8        0x8 temp/objects/v_edit.o
+ .bss           0x00000000408476d0        0x0 temp/objects/edit.o
+ .bss           0x00000000408476d0     0x1300 temp/objects/files.o
  *(COMMON)
-                0x00000000408466c2                __bss_end = .
-                0x00000000408466c8                . = ALIGN (0x8)
-                0x00000000408566c8                . = (. + 0x10000)
-                0x00000000408566c8                stack_top = .
+                0x00000000408489d0                __bss_end = .
+                0x00000000408489d0                . = ALIGN (0x8)
+                0x00000000408589d0                . = (. + 0x10000)
+                0x00000000408589d0                stack_top = .
 OUTPUT(temp/elfs/kernel.elf elf64-littleaarch64)
 LOAD linker stubs
 
@@ -625,4 +651,10 @@ LOAD linker stubs
  .comment       0x0000000000000045        0x0 temp/objects/cursor.o
                                          0x46 (size before relaxing)
  .comment       0x0000000000000045        0x0 temp/objects/keyboard_tester_app.o
+                                         0x46 (size before relaxing)
+ .comment       0x0000000000000045        0x0 temp/objects/v_edit.o
+                                         0x46 (size before relaxing)
+ .comment       0x0000000000000045        0x0 temp/objects/edit.o
+                                         0x46 (size before relaxing)
+ .comment       0x0000000000000045        0x0 temp/objects/files.o
                                          0x46 (size before relaxing)
