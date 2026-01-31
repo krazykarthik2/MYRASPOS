@@ -184,13 +184,68 @@ void diskfs_sync_from_ramfs(void) {
             uint8_t *tmp = kmalloc(65536); // Assume max 64KB for now
             int read_len = ramfs_read(name, tmp, 65536, 0);
             if (read_len > 0) {
-                uart_puts("  syncing: "); uart_puts(name); uart_puts("\n");
-                diskfs_create(name);
-                diskfs_write(name, tmp, read_len, 0);
+                // Check if file exists in diskfs and has different size/content?
+                // For now, simple logic: create/overwrite.
+                // Log only if creating
+                if (find_file_index(name) < 0) {
+                    uart_puts("  syncing NEW: "); uart_puts(name); uart_puts("\n");
+                    diskfs_create(name);
+                    diskfs_write(name, tmp, read_len, 0);
+                } else {
+                     // Update? 
+                     // uart_puts("  syncing UPDATE: "); uart_puts(name); uart_puts("\n");
+                     // diskfs_write(name, tmp, read_len, 0); 
+                }
             }
             kfree(tmp);
         }
         name += strlen(name) + 1;
     }
     uart_puts("[diskfs] sync complete.\n");
+}
+
+void diskfs_sync_to_ramfs(void) {
+    uart_puts("[diskfs] loading from disk to ramfs...\n");
+    for (int i = 0; i < MAX_DISK_FILES; i++) {
+        if (dir_cache[i].name[0] != '\0') {
+             uart_puts("[diskfs] found file on disk: "); uart_puts(dir_cache[i].name); uart_puts("\n");
+              // Create parent dirs if needed?
+              // name like "/system/assets/calculator.png"
+             // Helper to mkdir -p? 
+             // For now assume flat or rely on ramfs logic? 
+             // ramfs_create requires parent dir to exist usually.
+             
+             // Naive load
+             int size = dir_cache[i].size;
+             uint8_t *buf = kmalloc(size);
+             if (buf) {
+                 diskfs_read(dir_cache[i].name, buf, size, 0);
+                 
+                 // Ensure directory exists
+                 // Parse path
+                 char path_buf[128];
+                 strncpy(path_buf, dir_cache[i].name, 63);
+                 // Walk and create dirs
+                 char *p = path_buf;
+                 while (*p == '/') p++; // skip leading /
+                 while (*p) {
+                     if (*p == '/') {
+                         *p = '\0';
+                         ramfs_mkdir(path_buf); // Try create
+                         *p = '/';
+                     }
+                     p++;
+                 }
+
+                 if (ramfs_create(dir_cache[i].name) == 0) {
+                     ramfs_write(dir_cache[i].name, buf, size, 0);
+                     uart_puts("  loaded: "); uart_puts(dir_cache[i].name); uart_puts("\n");
+                 } else {
+                     uart_puts("  failed to create in ramfs: "); uart_puts(dir_cache[i].name); uart_puts("\n");
+                 }
+                 kfree(buf);
+             }
+        }
+    }
+    uart_puts("[diskfs] load complete.\n");
 }

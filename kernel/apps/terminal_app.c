@@ -71,6 +71,9 @@ static void term_update_task(void *arg) {
     (void)arg;
     struct terminal_app *my_term = g_term;
     
+    char input_buf[128];
+    int input_buf_idx = 0;
+
     while (1) {
         if (!g_term) break;
         
@@ -86,21 +89,70 @@ static void term_update_task(void *arg) {
              break;
         }
 
+        /* Input Processing */
+        struct wm_input_event ev;
+        while (wm_pop_key_event(t->win, &ev)) {
+             /* Input is handled by WM TTY forwarding now. 
+                We just drain the queue to keep it from filling up. 
+             */
+        }
+
         int count = 0;
+        int active = 0;
         while (g_term && pty_has_out(t->pty)) {
+             active = 1;
              char c = pty_read_out(t->pty);
-             // ... logic using 't' ...
-             if (c == '\n') { t->cursor_x = 0; t->cursor_y++; }
-             else if (c == '\r') { t->cursor_x = 0; }
-             else if (c == '\b') { 
-                 if (t->cursor_x > 0) t->cursor_x--; 
-                 t->grid[t->cursor_y][t->cursor_x] = ' '; 
-             } else {
-                 if (t->cursor_x < TERM_COLS && t->cursor_y < TERM_ROWS) {
-                     t->grid[t->cursor_y][t->cursor_x] = c;
-                     t->cursor_x++;
+
+             /* ANSI Parser State Machine */
+             /* State 0: Normal, 1: ESC, 2: '[' (CSI), 3: Params */
+             static int term_state = 0;
+             static char state_buf[16];
+             static int state_idx = 0;
+
+             if (term_state == 0) {
+                 if (c == '\x1b') {
+                     term_state = 1;
+                 } else if (c == '\n') { 
+                     t->cursor_x = 0; t->cursor_y++; 
+                 } else if (c == '\r') { 
+                     t->cursor_x = 0; 
+                 } else if (c == '\b') { 
+                     if (t->cursor_x > 0) t->cursor_x--; 
+                     t->grid[t->cursor_y][t->cursor_x] = ' '; 
+                 } else {
+                     if (t->cursor_x < TERM_COLS && t->cursor_y < TERM_ROWS) {
+                         t->grid[t->cursor_y][t->cursor_x] = c;
+                         t->cursor_x++;
+                     }
+                 }
+             } else if (term_state == 1) {
+                 if (c == '[') {
+                     term_state = 2;
+                     state_idx = 0;
+                 } else {
+                     term_state = 0; /* invalid, drop */
+                 }
+             } else if (term_state == 2) {
+                 if (c >= '0' && c <= '9') {
+                     if (state_idx < 15) state_buf[state_idx++] = c;
+                 } else if (c == ';') {
+                     if (state_idx < 15) state_buf[state_idx++] = c;
+                 } else {
+                     /* Command char */
+                     state_buf[state_idx] = '\0';
+                     if (strcmp(state_buf, "2") == 0) {
+                         /* 2J = clear screen */
+                         memset(t->grid, ' ', sizeof(t->grid));
+                         t->cursor_x = 0; t->cursor_y = 0;
+                     } else if (strcmp(state_buf, "H") == 0) {
+                         /* Home cursor (H or f) - ignoring params for now, assume 0,0 */
+                         t->cursor_x = 0; t->cursor_y = 0;
+                     }
+                     term_state = 0;
                  }
              }
+
+             /* Scroll check */
              if (t->cursor_y >= TERM_ROWS) {
                  memmove(t->grid[0], t->grid[1], TERM_COLS * (TERM_ROWS - 1));
                  memset(t->grid[TERM_ROWS - 1], ' ', TERM_COLS);
@@ -111,13 +163,8 @@ static void term_update_task(void *arg) {
              wm_request_render(t->win);
 
              if (++count > 64) { count = 0; yield(); }
-             
-             /* Re-check global before continuing inner loop? 
-                If g_term becomes NULL, we should stop writing to it? 
-                But 't' is still valid memory until WE free it. 
-                Use 't' is safe. */
         }
-        yield();
+        if (!active) yield();
     }
     
     /* Cleanup */
@@ -150,7 +197,8 @@ void terminal_app_start(void) {
     uart_puts("[terminal] window allocated at: "); uart_put_hex((uintptr_t)g_term->win); uart_puts("\n");
     
     g_term->win->on_close = terminal_on_close;
-    g_term->win->tty = g_term->pty;
+    g_term->win->tty = g_term->pty; /* Redirect input handled by WM */
+    // g_term->win->tty = NULL;
     
     uart_puts("[terminal] About to create task. Checking task list...\n");
     

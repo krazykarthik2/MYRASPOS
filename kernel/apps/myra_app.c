@@ -13,6 +13,7 @@
 #include "files_app.h"
 #include "keyboard_tester_app.h"
 #include "editor_app.h"
+#include "image_viewer.h"
 
 struct app_info {
     const char *name;
@@ -55,6 +56,7 @@ static struct app_info apps[] = {
     {"Keyboard Tester", launch_keytester, "/icons/keys.bin", 0},
     {"File Explorer", launch_files, "/icons/files.bin", 0},
     {"Valli Editor", launch_editor, "/icons/editor.bin", 0},
+    {"Image Viewer", (void(*)(void))image_viewer_start, "/icons/image.bin", 0},
     {"Settings", launch_settings, "/icons/settings.bin", 0},
     {"Help", launch_help, "/icons/help.bin", 0}
 };

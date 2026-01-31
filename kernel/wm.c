@@ -9,7 +9,7 @@
 #include "sched.h"
 #include "input.h"
 #include "timer.h"
-#include "myra_app.h"
+#include "apps/myra_app.h"
 #include "cursor.h"
 
 static struct window *window_list = NULL;
@@ -216,6 +216,21 @@ void wm_draw_text(struct window *win, int x, int y, const char *text, uint32_t c
     if (x < 0 || y < 0 || x >= mw || y >= mh) return;
 
     fb_draw_text(ox + x, oy + y, text, color, scale);
+}
+
+void wm_draw_bitmap(struct window *win, int x, int y, int w, int h, const uint32_t *bitmap, int bw, int bh) {
+    if (!win) return;
+    int ox = win->x + 2;
+    int oy = (win->state == WM_STATE_FULLSCREEN) ? win->y + 2 : win->y + 22;
+    int mw = win->w - 4;
+    int mh = (win->state == WM_STATE_FULLSCREEN) ? win->h - 4 : win->h - 24;
+
+    /* fb_draw_bitmap_scaled handles clipping if we provide the clipping rect (ox, oy, mw, mh) 
+       BUT coordinates passed to it must be target screen coords.
+       target screen coords = ox + x, oy + y
+    */
+    
+    fb_draw_bitmap_scaled(ox + x, oy + y, w, h, bitmap, bw, bh, ox, oy, mw, mh);
 }
 
 int wm_is_focused(struct window *win) {

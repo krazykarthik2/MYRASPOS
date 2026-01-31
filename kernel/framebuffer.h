@@ -16,5 +16,7 @@ int fb_is_init(void);
 void fb_fill(uint32_t color);
 void fb_put_text_centered(const char *s, uint32_t color);
 void fb_get_res(int *w, int *h);
+void fb_draw_bitmap_scaled(int x, int y, int w, int h, const uint32_t *bitmap, int bw, int bh, int cx, int cy, int cw, int ch);
+void fb_draw_scaled_glyph(const uint8_t *g, int x, int y, int scale, uint32_t color);
 
 #endif

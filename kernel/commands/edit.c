@@ -1,5 +1,5 @@
 #include "programs.h"
-#include "editor_app.h"
+#include "apps/editor_app.h"
 #include <stddef.h>
 #include <string.h>
 

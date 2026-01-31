@@ -3,11 +3,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-static void fb_draw_scaled_glyph(const uint8_t *g, int x, int y, int scale, uint32_t color);
-
 static volatile uint32_t *fb = NULL;
 static int fb_w = 0;
-static int fb_h = 0;
+static int fb_h = 0; 
 static int fb_stride = 0; /* in pixels (not bytes) */
 static int fb_init_done = 0;
 
@@ -258,7 +256,7 @@ void fb_draw_text(int x, int y, const char *s, uint32_t color, int scale) {
     }
 }
 
-static void fb_draw_scaled_glyph(const uint8_t *g, int x, int y, int scale, uint32_t color) {
+void fb_draw_scaled_glyph(const uint8_t *g, int x, int y, int scale, uint32_t color) {
     /* glyph is 5 cols (bits 0..4), 7 rows */
     for (int row = 0; row < 7; ++row) {
         uint8_t bits = g[row];
@@ -331,3 +329,80 @@ void fb_puts(const char *s) {
     }
     virtio_gpu_flush();
 }
+
+void fb_draw_bitmap_scaled(int x, int y, int w, int h, const uint32_t *bitmap, int bw, int bh, int cx, int cy, int cw, int ch) {
+    if (!fb || !bitmap) return;
+    
+    /* Clipping */
+    /* Intersection of target rect (x,y,w,h) and clip rect (cx,cy,cw,ch) */
+    int ix = (x > cx) ? x : cx;
+    int iy = (y > cy) ? y : cy;
+    int iw = (x + w < cx + cw) ? (x + w) : (cx + cw);
+    int ih = (y + h < cy + ch) ? (y + h) : (cy + ch);
+    
+    iw -= ix;
+    ih -= iy;
+    
+    if (iw <= 0 || ih <= 0) return;
+
+    /* For nearest neighbor scaling:
+       src_x = (dst_x - x) * bw / w
+       src_y = (dst_y - y) * bh / h
+    */
+
+    for (int dy = 0; dy < ih; dy++) {
+        int screen_y = iy + dy;
+        /* Screen bounds check */
+        if (screen_y < 0 || screen_y >= fb_h) continue;
+        
+        /* Map screen_y back to source y */
+        /* relative y in dst rect */
+        int rel_y = screen_y - x; 
+        /* Wait, screen_y - y is correct relative y */
+        rel_y = screen_y - y;
+        
+        int src_y = (rel_y * bh) / h;
+        if (src_y < 0) src_y = 0;
+        if (src_y >= bh) src_y = bh - 1;
+
+        volatile uint32_t *row_dst = fb + (screen_y * fb_stride);
+        const uint32_t *row_src_base = bitmap + (src_y * bw);
+
+        for (int dx = 0; dx < iw; dx++) {
+            int screen_x = ix + dx;
+            if (screen_x < 0 || screen_x >= fb_w) continue;
+
+            int rel_x = screen_x - x;
+            int src_x = (rel_x * bw) / w;
+            if (src_x < 0) src_x = 0;
+            if (src_x >= bw) src_x = bw - 1;
+
+            uint32_t color = row_src_base[src_x];
+            
+            /* Simple Alpha Blend */
+            uint8_t a = (color >> 24) & 0xFF;
+            if (a == 0) continue;
+            if (a == 255) {
+                row_dst[screen_x] = color;
+            } else {
+                /* read dst */
+                uint32_t dst = row_dst[screen_x];
+                uint8_t dr = (dst >> 16) & 0xFF;
+                uint8_t dg = (dst >> 8) & 0xFF;
+                uint8_t db = dst & 0xFF;
+                
+                uint8_t sr = (color >> 16) & 0xFF;
+                uint8_t sg = (color >> 8) & 0xFF;
+                uint8_t sb = color & 0xFF;
+
+                uint16_t inv_a = 255 - a;
+                uint8_t r = (uint8_t)((sr * a + dr * inv_a) / 255);
+                uint8_t g = (uint8_t)((sg * a + dg * inv_a) / 255);
+                uint8_t b = (uint8_t)((sb * a + db * inv_a) / 255);
+                
+                row_dst[screen_x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
+            }
+        }
+    }
+}
+

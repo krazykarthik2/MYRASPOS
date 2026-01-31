@@ -7,7 +7,8 @@
 #include <stdint.h>
 #include "wm.h"
 #include "virtio.h"
-#include "terminal_app.h"
+#include "uart.h"
+// #include "apps/terminal_app.h"
 
 /* Exported helpers for shell to call which perform syscalls on behalf of shell */
 void init_puts(const char *s) {
@@ -162,6 +163,13 @@ void init_main(void *arg) {
     // Initialize VFS
     extern void files_init(void);
     files_init();
+    
+    // Initialize DiskFS and load assets
+    uart_puts("[init] DEBUG: about to init diskfs...\n");
+    extern void diskfs_init(void);
+    extern void diskfs_sync_to_ramfs(void);
+    diskfs_init();
+    diskfs_sync_to_ramfs();
 
     init_puts("[init] GUI subsystem starting...\n");
     wm_init();

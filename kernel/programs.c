@@ -23,6 +23,16 @@ static struct prog_entry prog_table[] = {
     {"tree", prog_tree},
     {"edit", prog_edit},
     {"vim", prog_edit},
+    {"view", prog_view},
+    {"clear", prog_clear},
+    {"ps", prog_ps},
+    {"sleep", prog_sleep},
+    {"wait", prog_wait},
+    {"kill", prog_kill},
+    {"ramfs-export", prog_ramfs_export},
+    {"ramfs-import", prog_ramfs_import},
+    {"systemctl", prog_systemctl},
+    {"free", prog_free},
     {NULL, NULL}
 };
 

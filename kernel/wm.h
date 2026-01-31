@@ -53,6 +53,7 @@ void wm_request_render(struct window *win);
 /* Window-relative drawing (clipped and offset) */
 void wm_draw_rect(struct window *win, int x, int y, int w, int h, uint32_t color);
 void wm_draw_text(struct window *win, int x, int y, const char *text, uint32_t color, int scale);
+void wm_draw_bitmap(struct window *win, int x, int y, int w, int h, const uint32_t *bitmap, int bw, int bh);
 
 void wm_compose(void);
 void wm_get_mouse_state(int *x, int *y, int *btn);

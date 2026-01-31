@@ -178,3 +178,30 @@ void kfree(void *ptr) {
     }
     irq_restore(flags);
 }
+
+void *krealloc(void *ptr, size_t new_size) {
+    if (!ptr) return kmalloc(new_size);
+    if (new_size == 0) {
+        kfree(ptr);
+        return NULL;
+    }
+
+    struct km_header *h = (struct km_header *)ptr - 1;
+    if (h->size >= new_size) return ptr; // Good enough
+
+    void *new_ptr = kmalloc(new_size);
+    if (!new_ptr) return NULL;
+
+    // We need memcpy. Assuming string.h availability or manual copy
+    // Since we don't have string.h included, let's include it or use a simple loop
+    // But modifying includes is another tool call. I'll just do a byte loop.
+    unsigned char *dst = (unsigned char *)new_ptr;
+    unsigned char *src = (unsigned char *)ptr;
+    for (size_t i = 0; i < h->size; i++) {
+        dst[i] = src[i];
+    }
+
+    kfree(ptr);
+    return new_ptr;
+}
+
