@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 /* Page Table Entry Flags */
+#define USER_SPACE_START    (1ULL << 39)  /* 512GB - Start of L0 index 1 */
 #define PTE_VALID           (1ULL << 0)
 #define PTE_TABLE           (1ULL << 1)
 #define PTE_BLOCK           (0ULL << 1)
@@ -33,5 +34,10 @@
 
 void mmu_init(void);
 void mmu_map(uintptr_t va, uintptr_t pa, size_t size, uint64_t flags);
+uint64_t* mmu_create_user_pgd(void);
+void mmu_free_user_pgd(uint64_t *pgd);
+int mmu_map_page(uint64_t *pgd, uintptr_t va, uintptr_t pa, uint64_t flags);
+void mmu_switch(uint64_t *pgd);
+uint64_t* mmu_get_kernel_pgd(void);
 
 #endif

@@ -9,8 +9,13 @@ extern char __bss_end[];
 
 static uint64_t *kernel_l0 = NULL;
 
-static uint64_t *get_next_level(uint64_t *current_table, int index) {
+uint64_t* mmu_get_kernel_pgd(void) {
+    return kernel_l0;
+}
+
+static uint64_t *get_next_level(uint64_t *current_table, int index, int alloc) {
     if (!(current_table[index] & PTE_VALID)) {
+        if (!alloc) return NULL;
         uint64_t *next = (uint64_t *)palloc_alloc();
         if (!next) return NULL;
         memset(next, 0, PAGE_SIZE);
@@ -33,8 +38,8 @@ static uint64_t *get_next_level(uint64_t *current_table, int index) {
     return (uint64_t *)(current_table[index] & ~0xFFFULL);
 }
 
-void mmu_map(uintptr_t va, uintptr_t pa, size_t size, uint64_t flags) {
-    if (!kernel_l0) return;
+int mmu_map_table(uint64_t *pgd, uintptr_t va, uintptr_t pa, size_t size, uint64_t flags) {
+    if (!pgd) return -1;
 
     uintptr_t v_start = va & ~0xFFFULL;
     uintptr_t v_end = (va + size + 0xFFFULL) & ~0xFFFULL;
@@ -46,12 +51,12 @@ void mmu_map(uintptr_t va, uintptr_t pa, size_t size, uint64_t flags) {
         int l2_idx = (v_ptr >> 21) & 0x1FF;
         int l3_idx = (v_ptr >> 12) & 0x1FF;
 
-        uint64_t *l1 = get_next_level(kernel_l0, l0_idx);
-        if (!l1) return;
-        uint64_t *l2 = get_next_level(l1, l1_idx);
-        if (!l2) return;
-        uint64_t *l3 = get_next_level(l2, l2_idx);
-        if (!l3) return;
+        uint64_t *l1 = get_next_level(pgd, l0_idx, 1);
+        if (!l1) return -1;
+        uint64_t *l2 = get_next_level(l1, l1_idx, 1);
+        if (!l2) return -1;
+        uint64_t *l3 = get_next_level(l2, l2_idx, 1);
+        if (!l3) return -1;
 
         l3[l3_idx] = p_ptr | flags | PTE_VALID | PTE_PAGE;
         
@@ -61,6 +66,56 @@ void mmu_map(uintptr_t va, uintptr_t pa, size_t size, uint64_t flags) {
         p_ptr += PAGE_SIZE;
     }
     __asm__ volatile("dmb sy" ::: "memory");
+    return 0;
+}
+
+void mmu_map(uintptr_t va, uintptr_t pa, size_t size, uint64_t flags) {
+    mmu_map_table(kernel_l0, va, pa, size, flags);
+}
+
+uint64_t* mmu_create_user_pgd(void) {
+    if (!kernel_l0) return NULL;
+    uint64_t *pgd = (uint64_t *)palloc_alloc();
+    if (!pgd) return NULL;
+    memset(pgd, 0, PAGE_SIZE);
+
+    /* Copy Kernel mappings (Shared L1 table at index 0)
+     * This assumes all Kernel space is within the first 512GB.
+     */
+    pgd[0] = kernel_l0[0];
+
+    /* Flush to RAM */
+    uintptr_t p = (uintptr_t)pgd;
+    for (uintptr_t i = 0; i < PAGE_SIZE; i += 64) {
+        __asm__ volatile("dc civac, %0" : : "r" (p + i) : "memory");
+    }
+    __asm__ volatile("dmb sy" ::: "memory");
+    
+    return pgd;
+}
+
+void mmu_free_user_pgd(uint64_t *pgd) {
+    if (!pgd || pgd == kernel_l0) return;
+    
+    /* TODO: Improve cleanup. We must NOT free index 0 (Kernel).
+       We should recursively free other indices (User mappings).
+       For now, we just free the top level page. Leaks user L1/L2/L3 tables.
+    */
+    palloc_free(pgd, 1);
+}
+
+int mmu_map_page(uint64_t *pgd, uintptr_t va, uintptr_t pa, uint64_t flags) {
+    return mmu_map_table(pgd, va, pa, PAGE_SIZE, flags);
+}
+
+void mmu_switch(uint64_t *pgd) {
+    uint64_t *target = pgd ? pgd : kernel_l0;
+    
+    __asm__ volatile("msr ttbr0_el1, %0" : : "r" (target));
+    __asm__ volatile("isb");
+    __asm__ volatile("tlbi vmalle1is"); /* Invalidate all TLBs */
+    __asm__ volatile("dsb sy");
+    __asm__ volatile("isb");
 }
 
 void mmu_init(void) {
@@ -75,9 +130,9 @@ void mmu_init(void) {
     __asm__ volatile("dmb sy" ::: "memory");
 
     /* 
-     * Map specifically what we need to avoid using too many page tables:
+     * Map specifically what we need:
      * 0x00000000 to 0x40000000 (1GB): Peripheral space (DEVICE)
-     * 0x40000000 to 0x60000000 (512MB): RAM space (NORMAL) - covers kernel and basic heap
+     * 0x40000000 to 0x60000000 (512MB): RAM space (NORMAL)
      */
     
     // Peripherals (UART, GIC, Virtio, etc.)
@@ -88,14 +143,10 @@ void mmu_init(void) {
 
     uart_puts("[mmu] Page tables set up. Invalidating BSS...\n");
     
-    /* CRITICAL: Invalidate the BSS section (where static globals like palloc state live).
-       This ensures that the MMU sees the data written to RAM during palloc_init. */
-    uintptr_t bss_start = (uintptr_t)__bss_start;
-    uintptr_t bss_end = (uintptr_t)__bss_end;
+    uintptr_t bss_start_addr = (uintptr_t)__bss_start;
+    uintptr_t bss_end_addr = (uintptr_t)__bss_end;
     
-    /* Ensure 64-byte alignment or handle unaligned start/end if needed, 
-       but linker usually aligns sections. */
-    for (uintptr_t addr = bss_start; addr < bss_end; addr += 64) {
+    for (uintptr_t addr = bss_start_addr; addr < bss_end_addr; addr += 64) {
         __asm__ volatile("dc civac, %0" : : "r" (addr) : "memory");
     }
     __asm__ volatile("dmb sy" ::: "memory");
@@ -110,7 +161,7 @@ void mmu_init(void) {
     /* Set up system registers */
     __asm__ volatile("msr mair_el1, %0" : : "r" (MAIR_VALUE));
     
-    /* Simpler TCR: 48-bit VA, 4KB granule, inner shareable WBWA */
+    /* 48-bit VA, 4KB granule, inner shareable WBWA */
     uint64_t tcr = (16ULL << 0) |   /* T0SZ = 64-48 */
                     (1ULL << 8) |   /* IRGN0 = WBWA */
                     (1ULL << 10) |  /* ORGN0 = WBWA */
@@ -134,4 +185,3 @@ void mmu_init(void) {
 
     uart_puts("[mmu] MMU enabled.\n");
 }
-

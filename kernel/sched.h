@@ -25,6 +25,7 @@ typedef void (*task_fn)(void *arg);
 int scheduler_init(void);
 int task_create(task_fn fn, void *arg, const char *name);
 int task_create_with_stack(task_fn fn, void *arg, const char *name, size_t stack_kb);
+int task_create_user(const char *name, void *entry_point);
 void schedule(void);
 void yield(void);
 int task_kill(int id);

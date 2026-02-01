@@ -94,12 +94,44 @@ void kernel_main(void) {
 
     /* create init task which will run a shell - needs large stack for bootup (virtio, services, etc.) */
     task_create_with_stack(init_main, NULL, "init", 64);
+    
+    /* TEST: User Space Task - Verification Complete (Disabled to prevent log spam/lag) */
+    extern void user_test_entry(void);
+    // task_create_user("user_test", user_test_entry);
 
-    uart_puts("[kernel] enabling interrupts...\n");
+    uart_puts("[kernel] enabling interrupts2...\n");
     __asm__ volatile("msr daifclr, #2");
 
     /* run scheduler loop cooperatively */
     while (1) {
         schedule();
     }
+}
+
+void __attribute__((naked)) user_test_entry(void) {
+    asm volatile(
+        /* Construct string "H User!\n" on stack */
+        "sub sp, sp, #16\n"
+        "movz x0, #0x2048\n"
+        "movk x0, #0x7355, lsl #16\n" 
+        "movk x0, #0x7265, lsl #32\n" 
+        "movk x0, #0x0A21, lsl #48\n" 
+        "str x0, [sp]\n"
+        "str xzr, [sp, #8]\n"         
+        
+        "1:\n"
+        "mov x0, sp\n"      
+        "mov x8, #1\n"    
+        "svc #0\n"
+        
+        /* Yield */
+        "mov x8, #2\n"
+        "svc #0\n"
+        
+        /* Loop delay */
+        "mov x1, #0x200000\n"
+        "2: subs x1, x1, #1\n"
+        "b.ne 2b\n"
+        "b 1b\n"
+    );
 }

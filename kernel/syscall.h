@@ -26,6 +26,10 @@ uintptr_t syscall_handle(uint32_t num, uintptr_t a0, uintptr_t a1, uintptr_t a2)
 /* recursive remove */
 #define SYS_RAMFS_REMOVE_RECURSIVE 10
 
+
+/*yeild call*/
+#define SYS_YIELD 12
+
 /* service manager syscalls */
 #define SYS_SERVICE_LOAD_ALL 16    /* scan /etc/systemd/system and load units */
 #define SYS_SERVICE_LOAD_UNIT 17   /* load a single unit: a0 = const char *path */

@@ -5,6 +5,14 @@
 
 typedef void (*irq_handler_fn)(void *arg);
 
+/* Stack layout from vectors.S kernel_entry */
+struct pt_regs {
+    uint64_t regs[30]; /* x0-x29 */
+    uint64_t lr;       /* x30 */
+    uint64_t elr;      /* exception link register */
+    uint64_t spsr;     /* saved program status */
+};
+
 void irq_init(void);
 int irq_register(int irq_num, irq_handler_fn fn, void *arg);
 /* poll for pending interrupts and dispatch handlers (called from scheduler loop) */

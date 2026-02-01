@@ -1,6 +1,8 @@
 #include "sched.h"
 #include "kmalloc.h"
 #include "uart.h"
+#include "mmu.h"
+#include "palloc.h"
 #include <stdint.h>
 #include "lib.h"
 #include "lib.h"
@@ -39,6 +41,8 @@ struct task {
     void *stack; /* allocated kernel stack page */
     size_t stack_total_bytes;  /* total allocation including guard */
     struct task_context context;
+    
+    uint64_t *pgd;
     
     int parent_id; /* ID of parent task */
     struct task *next;
@@ -205,6 +209,99 @@ int task_create(task_fn fn, void *arg, const char *name) {
     return task_create_with_stack(fn, arg, name, 16);
 }
 
+static void enter_user_mode(void *entry_point) {
+    /* User Stack fixed at start of User Space + 1MB for now */
+    uint64_t sp = USER_SPACE_START + 0x100000;
+    
+    /* Clear SPSR (EL0t), Set ELR (Entry), Set SP_EL0 */
+    /* Ensure PSTATE interrupts are enabled in SPSR (bits 6,7,8=0 means enabled) */
+    __asm__ volatile(
+        "msr sp_el0, %0\n"
+        "msr elr_el1, %1\n"
+        "msr spsr_el1, %2\n"
+        "eret\n"
+        : : "r"(sp), "r"(entry_point), "r"(0) : "memory");
+    
+    __builtin_unreachable();
+}
+
+int task_create_user(const char *name, void *entry_point) {
+    /* Create basic task structure used enter_user_mode as placeholder to avoid x19=0 panic */
+    /* Stack size 16KB to prevent overflow during syscalls + IRQs */
+    int pid = task_create_with_stack((task_fn)enter_user_mode, NULL, name, 16); 
+    if (pid < 0) return -1;
+
+    /* Find the task structure - inefficient but reuses helpers */
+    struct task *t = task_head;
+    do {
+        if (t->id == pid) break;
+        t = t->next;
+    } while (t && t != task_head);
+    
+    if (!t || t->id != pid) return -1;
+
+    /* Setup User Space */
+    t->pgd = mmu_create_user_pgd();
+    if (!t->pgd) {
+        task_kill(pid);
+        return -1;
+    }
+
+    /* Map a stack page for user */
+    /* We map one page at USER_SPACE_START + 0x100000 - PAGE_SIZE */
+    /* SP will be at TOP of this page */
+    void *stack_page = palloc_alloc();
+    if (!stack_page) {
+        task_kill(pid);
+        return -1;
+    }
+    
+    /* Zero the stack page */
+    memset(stack_page, 0, PAGE_SIZE);
+
+    /* Flags: User, RW, Inner Shareable, Normal Memory */
+    /* Note: PTE_USER means AP[1]=1. PTE_RDONLY means AP[2]=1. */
+    /* We want RW, so no RDONLY. */
+    uint64_t flags = PTE_USER | PTE_AF | PTE_SH_INNER | PTE_MEMATTR_NORMAL;
+    
+    /* Map it at 0x80000F0000 (virtual) */
+    /* USER_SPACE_START = 1<<39. Stack Top = +1MB. Page Start = +1MB-4KB */
+    uintptr_t stack_va = USER_SPACE_START + 0x100000 - PAGE_SIZE;
+    
+    mmu_map_page(t->pgd, stack_va, (uintptr_t)stack_page, flags);
+
+    /* Map the Entry Point? 
+       For now, we assume the entry point is already mapped or 
+       passed as a pointer to code we will copy? 
+       Actually, if we just pass a function pointer from Kernel (like test_user_func),
+       that code resides in Kernel Address space (0x408xxxxx).
+       User PGD has Kernel space mapped as EL1 ONLY.
+       So User cannot execute it!
+       We MUST map the code page as User Executable.
+       
+       Hack for prototype: Map the page containing 'entry_point' as User Executable.
+    */
+    uintptr_t code_pa = (uintptr_t)entry_point; // Identity map for kernel addresses
+    uintptr_t code_va_aligned = code_pa & ~0xFFF;
+    
+    /* Map the kernel code page as User Accessible (RWX for simplicity) */
+    /* Note: This is dangerous (aliasing kernel memory as user), but fine for test. */
+    /* Also, we must map it at a USER VA, not Kernel VA. 
+       Let's map it at 0x8000000000 (Start of User Space).
+    */
+    mmu_map_page(t->pgd, USER_SPACE_START, code_pa, flags); // Map at 0 offset
+    
+    /* Entry point in new VA */
+    uintptr_t entry_offset = code_pa & 0xFFF;
+    uintptr_t user_entry = USER_SPACE_START + entry_offset;
+
+    /* Update Task Context to start at enter_user_mode */
+    t->context.x19 = (uint64_t)enter_user_mode;
+    t->context.x20 = (uint64_t)user_entry; /* Pass User VA */
+
+    return pid;
+}
+
 /* Reap zombie tasks safely. Called at start of schedule() AFTER we've context-switched
  * away from the exiting task, so it's safe to free their memory now. */
 static void reap_zombies(void) {
@@ -262,6 +359,7 @@ static void reap_zombies(void) {
                 int zombie_id = t->id;
                 
                 if (to_free->stack) kfree(to_free->stack);
+                if (to_free->pgd) mmu_free_user_pgd(to_free->pgd);
                 kfree(to_free);
                 
                 found = 1;
@@ -494,6 +592,10 @@ void schedule(void) {
 
     /* Mask IRQs to ensure atomic switch (crucial for stack safety) */
     // IRQs already disabled via sched_flags
+    
+    /* Switch MMU if needed */
+    /* Checks handled inside mmu_switch (null check falls back to kernel_l0) */
+    mmu_switch(next->pgd);
     
     cpu_switch_to(&prev->context, &next->context);
     

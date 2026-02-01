@@ -24,6 +24,7 @@ int syscall_register(uint32_t num, syscall_fn fn) {
 
 uintptr_t syscall_handle(uint32_t num, uintptr_t a0, uintptr_t a1, uintptr_t a2) {
     if (num >= SYSCALL_MAX || !table[num]) return (uintptr_t)-1;
+    // uart_puts("Syscall "); uart_put_hex(num); uart_puts("\n");
     return table[num](a0, a1, a2);
 }
 
@@ -37,7 +38,7 @@ static uintptr_t sys_puts(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
         while (*s) pty_write_out(p, *s++);
     } else {
         uart_puts(s);
-        if (fb_is_init()) fb_puts(s);
+        // if (fb_is_init()) fb_puts(s);
     }
     return 0;
 }
@@ -152,13 +153,22 @@ static uintptr_t sys_time(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
 static uintptr_t sys_sleep(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
     (void)a1; (void)a2;
     uint32_t ms = (uint32_t)a0;
+    uart_puts("sys_sleep: calling sleep_ms\n");
     timer_sleep_ms(ms);
+    uart_puts("sys_sleep: returned\n");
     return 0;
 }
+static uintptr_t sys_yield(uintptr_t a0, uintptr_t a1, uintptr_t a2) {
+    (void)a0; (void)a1; (void)a2;
+    schedule();
+    return 0;
+}
+
 // Optionally register default syscalls during init from outside
 
 void syscall_register_defaults(void) {
     syscall_register(SYS_PUTS, sys_puts);
+    syscall_register(SYS_YIELD, sys_yield); /* Moved to 12 to avoid collision with RAMFS_CREATE (2) */
     syscall_register(SYS_GETC, sys_getc);
     syscall_register(SYS_RAMFS_CREATE, sys_ramfs_create);
     syscall_register(SYS_RAMFS_WRITE, sys_ramfs_write);

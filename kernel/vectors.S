@@ -117,6 +117,7 @@ fiq_el32:   kernel_entry; mov x0, #14; b handle_c
 serror_el32: kernel_entry; mov x0, #15; b handle_c
 
 handle_c:
+    mov x3, sp
     mrs x1, esr_el1
     mrs x2, elr_el1
     bl exception_c_handler
