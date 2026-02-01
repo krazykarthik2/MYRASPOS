@@ -2,6 +2,7 @@
 #define UART_H
 
 /* UART and helper prototypes */
+void uart_putu(unsigned int u);
 void uart_putc(char c);
 void uart_puts(const char *s);
 void uart_put_hex(unsigned int v);

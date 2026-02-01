@@ -2,7 +2,7 @@ import struct
 import os
 
 # Configuration
-DISK_SIZE = 1024 * 1024  # 1 MB
+DISK_SIZE = 16 * 1024 * 1024  # 16 MB
 SECTOR_SIZE = 512
 MAX_DISK_FILES = 128
 DIR_START_SECTOR = 1

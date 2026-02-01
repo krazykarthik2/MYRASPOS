@@ -12,6 +12,21 @@ static inline uint32_t mmio_read(uintptr_t reg) {
 static inline void mmio_write(uintptr_t reg, uint32_t val) {
     *(volatile uint32_t *)reg = val;
 }
+void uart_putu(unsigned int u){
+    char buf[11];
+    int i = 0;
+    if(u==0){
+        uart_putc('0');
+        return;
+    }
+    while (u > 0) {
+        buf[i++] = (u % 10) + '0';
+        u /= 10;
+    }
+    while (i > 0) {
+        uart_putc(buf[--i]);
+    }
+}
 
 void uart_putc(char c) {
     while (mmio_read(UART_FR) & (1 << 5)); /* TXFF bit 5 */

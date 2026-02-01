@@ -11,6 +11,7 @@
 #include "timer.h"
 #include "apps/myra_app.h"
 #include "cursor.h"
+#include "image.h"
 
 static struct window *window_list = NULL;
 static struct window *focused_window = NULL;
@@ -18,6 +19,10 @@ static int next_win_id = 1;
 static int desktop_dirty = 1;
 static int screen_w = 0, screen_h = 0;
 static const int taskbar_h = 32;
+
+static uint32_t *wallpaper_buf = NULL;
+static int wallpaper_w = 0;
+static int wallpaper_h = 0;
 
 static int wm_last_mx = -1, wm_last_my = -1;
 
@@ -65,6 +70,18 @@ static void wm_unlock_window(struct window *win) {
 void wm_init(void) {
     fb_get_res(&screen_w, &screen_h);
     input_init(screen_w, screen_h);
+
+    /* Try to load wallpaper */
+    if (img_load_png("/system/assets/wallpaper.png", &wallpaper_w, &wallpaper_h, &wallpaper_buf) == 0) {
+        uart_puts("WM: Wallpaper loaded (\n");
+        uart_putu(wallpaper_w);
+        uart_puts("x");
+        uart_putu(wallpaper_h);
+        uart_puts(")\n");
+    } else {
+        uart_puts("WM: Failed to load wallpaper\n");
+    }
+
     desktop_dirty = 1; // Mark desktop dirty on init
     task_wake_event(WM_EVENT_ID); // Trigger initial draw
 }
@@ -501,8 +518,13 @@ void wm_compose(void) {
             w_reset = w_reset->next;
         }
 
-        /* Desktop background (Steel Blue) */
-        fb_draw_rect(0, 0, screen_w, screen_h, 0x4682B4);
+        /* Desktop background */
+        if (wallpaper_buf) {
+            fb_draw_bitmap_scaled(0, 0, screen_w, screen_h, wallpaper_buf, wallpaper_w, wallpaper_h, 0, 0, screen_w, screen_h);
+        } else {
+            /* Fallback: Steel Blue */
+            fb_draw_rect(0, 0, screen_w, screen_h, 0x4682B4);
+        }
 
     /* Draw windows back to front */
     struct window *stack[16];
