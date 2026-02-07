@@ -2,14 +2,14 @@
 
 ## Executive Summary
 
-MYRASPOS is a **preemptive multitasking microkernel** for AArch64 (ARM64) designed for QEMU's virt machine and Raspberry Pi 3. It features a **round-robin task scheduler**, **hierarchical memory management** (palloc + kmalloc), **MMU-based address translation**, and **interrupt-driven polled I/O**. The design prioritizes simplicity and debugging visibility over performance.
+MYRASPOS is a **preemptive multitasking microkernel** for AArch64 (ARM64) designed for QEMU's virt machine and Raspberry Pi zero 2w. It features a **round-robin task scheduler**, **hierarchical memory management** (palloc + kmalloc), **MMU-based address translation**, and **interrupt-driven polled I/O**. The design prioritizes simplicity and debugging visibility over performance.
 
 ## System Overview
 
 ### Target Platform
 - **Architecture**: AArch64 (ARMv8-A 64-bit)
 - **Primary Target**: QEMU virt machine
-- **Secondary Target**: Raspberry Pi 3 (BCM2837)
+- **Secondary Target**: Raspberry Pi zero 2w (BCM2837)
 - **Exception Level**: EL1 (Kernel mode)
 
 ### Key Features
@@ -352,7 +352,7 @@ struct window {
 ## References
 
 - ARM Architecture Reference Manual ARMv8
-- Raspberry Pi 3 BCM2837 Technical Reference  
+- Raspberry Pi zero 2w BCM2837 Technical Reference  
 - QEMU virt machine specification
 - VirtIO specification v1.1
 - GIC Architecture Specification v2
