@@ -1,4 +1,7 @@
 # 🐧 MYRASPOS
+
+
+### [Docs](https://github.com/krazykarthik2/MYRASPOS/tree/master/docs/README.md)
 ### **A Minimalist AArch64 Micro-Kernel**
 
 `MYRASPOS` is a boutique kernel crafted for the **ARM (AArch64)** architecture. It serves as a lean, low-level playground for exploring preemptive multitasking, hardware abstraction, and kernel-space memory management on the Raspberry Pi.
