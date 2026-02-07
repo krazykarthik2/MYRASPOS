@@ -8,13 +8,12 @@ This directory contains comprehensive documentation for the MYRASPOS operating s
 - [00-ARCHITECTURE.md](00-ARCHITECTURE.md) - Complete system architecture overview
 - [01-BOOT-SEQUENCE.md](01-BOOT-SEQUENCE.md) - Boot process and initialization
 - [02-MEMORY-MANAGEMENT.md](02-MEMORY-MANAGEMENT.md) - Memory subsystems (palloc, kmalloc, MMU)
-- [03-TASK-SCHEDULING.md](03-TASK-SCHEDULING.md) - Task scheduler and context switching
-- [04-INTERRUPT-HANDLING.md](04-INTERRUPT-HANDLING.md) - Exception vectors and IRQ handling
+- [kernel/03-TASK-SCHEDULING.md](kernel/03-TASK-SCHEDULING.md) - Task scheduler and context switching
+- [kernel/services/vectors.md](kernel/services/vectors.md) - Exception vectors and IRQ handling
 - [05-DESIGN-DECISIONS.md](05-DESIGN-DECISIONS.md) - Key design decisions and constraints
 
 ### 2. Build System
 - [build/BUILD-SYSTEM.md](build/BUILD-SYSTEM.md) - Build system overview
-- [build/build.bat.md](build/build.bat.md) - Main build script
 - [build/sim.bat.md](build/sim.bat.md) - Simulator script
 - [build/python-scripts.md](build/python-scripts.md) - Python utility scripts
 
@@ -23,32 +22,32 @@ This directory contains comprehensive documentation for the MYRASPOS operating s
 - [boot/linker-files.md](boot/linker-files.md) - Linker scripts
 
 ### 4. Kernel Core
-- [kernel/kernel.md](kernel/kernel.md) - Main kernel entry point
-- [kernel/init.md](kernel/init.md) - Init task
-- [kernel/sched.md](kernel/sched.md) - Task scheduler
-- [kernel/swtch.md](kernel/swtch.md) - Context switching
-- [kernel/syscall.md](kernel/syscall.md) - System call interface
-- [kernel/vectors.md](kernel/vectors.md) - Exception vectors
+- [kernel/core/kernel.md](kernel/core/kernel.md) - Main kernel entry point
+- [kernel/core/init.md](kernel/core/init.md) - Init task
+- [kernel/03-TASK-SCHEDULING.md](kernel/03-TASK-SCHEDULING.md) - Task scheduler
+- [kernel/core/swtch.md](kernel/core/swtch.md) - Context switching
+- [kernel/services/syscall.md](kernel/services/syscall.md) - System call interface
+- [kernel/services/vectors.md](kernel/services/vectors.md) - Exception vectors
 
 ### 5. Memory Management
-- [kernel/memory/palloc.md](kernel/memory/palloc.md) - Page allocator
-- [kernel/memory/kmalloc.md](kernel/memory/kmalloc.md) - Kernel heap allocator
-- [kernel/memory/mmu.md](kernel/memory/mmu.md) - Memory management unit
+- [kernel/memory/palloc.c.md](kernel/memory/palloc.c.md) - Page allocator
+- [kernel/memory/kmalloc.c.md](kernel/memory/kmalloc.c.md) - Kernel heap allocator
+- [kernel/memory/mmu.c.md](kernel/memory/mmu.c.md) - Memory management unit
 
 ### 6. I/O Subsystems
-- [kernel/io/uart.md](kernel/io/uart.md) - Serial communication
-- [kernel/io/framebuffer.md](kernel/io/framebuffer.md) - Graphics subsystem
-- [kernel/io/input.md](kernel/io/input.md) - Input handling
-- [kernel/io/timer.md](kernel/io/timer.md) - Timer subsystem
-- [kernel/io/irq.md](kernel/io/irq.md) - Interrupt request handling
+- [kernel/io/uart.c.md](kernel/io/uart.c.md) - Serial communication
+- [kernel/io/framebuffer.c.md](kernel/io/framebuffer.c.md) - Graphics subsystem
+- [kernel/io/input.c.md](kernel/io/input.c.md) - Input handling
+- [kernel/io/timer.c.md](kernel/io/timer.c.md) - Timer subsystem
+- [kernel/io/irq.c.md](kernel/io/irq.c.md) - Interrupt request handling
 
 ### 7. Filesystems
-- [kernel/fs/ramfs.md](kernel/fs/ramfs.md) - RAM filesystem
-- [kernel/fs/diskfs.md](kernel/fs/diskfs.md) - Disk filesystem
-- [kernel/fs/files.md](kernel/fs/files.md) - File abstraction layer
+- [kernel/fs/ramfs.c.md](kernel/fs/ramfs.c.md) - RAM filesystem
+- [kernel/fs/diskfs.c.md](kernel/fs/diskfs.c.md) - Disk filesystem
+- [kernel/fs/files.c.md](kernel/fs/files.c.md) - File abstraction layer
 
 ### 8. Drivers
-- [kernel/drivers/virtio.md](kernel/drivers/virtio.md) - VirtIO device drivers
+- [kernel/drivers/virtio.c.md](kernel/drivers/virtio.c.md) - VirtIO device drivers
 
 ### 9. System Services
 - [kernel/services/pty.md](kernel/services/pty.md) - Pseudo-terminals
@@ -57,25 +56,13 @@ This directory contains comprehensive documentation for the MYRASPOS operating s
 - [kernel/services/programs.md](kernel/services/programs.md) - Program management
 
 ### 10. Window Manager
-- [kernel/wm/wm.md](kernel/wm/wm.md) - Window manager
-- [kernel/wm/cursor.md](kernel/wm/cursor.md) - Cursor handling
+- [kernel/wm/README.md](kernel/wm/README.md) - Window manager
 
 ### 11. Utility Libraries
-- [kernel/lib/lib.md](kernel/lib/lib.md) - Standard library functions
-- [kernel/lib/glob.md](kernel/lib/glob.md) - Pattern matching
-- [kernel/lib/image.md](kernel/lib/image.md) - Image handling
-- [kernel/lib/lodepng.md](kernel/lib/lodepng.md) - PNG decoder
-- [kernel/lib/panic.md](kernel/lib/panic.md) - Panic handler
-- [kernel/lib/write.md](kernel/lib/write.md) - Write utilities
+- [kernel/lib/README.md](kernel/lib/README.md) - Standard library functions and helpers
 
 ### 12. Applications
-- [kernel/apps/calculator_app.md](kernel/apps/calculator_app.md) - Calculator application
-- [kernel/apps/editor_app.md](kernel/apps/editor_app.md) - Text editor
-- [kernel/apps/files_app.md](kernel/apps/files_app.md) - File manager
-- [kernel/apps/image_viewer.md](kernel/apps/image_viewer.md) - Image viewer
-- [kernel/apps/keyboard_tester_app.md](kernel/apps/keyboard_tester_app.md) - Keyboard tester
-- [kernel/apps/myra_app.md](kernel/apps/myra_app.md) - Myra launcher application
-- [kernel/apps/terminal_app.md](kernel/apps/terminal_app.md) - Terminal application
+- [kernel/apps/README.md](kernel/apps/README.md) - All bundled applications
 
 ### 13. Shell Commands
 - [kernel/commands/README.md](kernel/commands/README.md) - Commands overview
