@@ -131,15 +131,31 @@ void mmu_init(void) {
 
     /* 
      * Map specifically what we need:
-     * 0x00000000 to 0x40000000 (1GB): Peripheral space (DEVICE)
-     * 0x40000000 to 0x60000000 (512MB): RAM space (NORMAL)
+     * QEMU virt:
+     *   0x00000000 to 0x40000000 (1GB): Peripheral space (DEVICE)
+     *   0x40000000 to 0x60000000 (512MB): RAM space (NORMAL)
+     * RPi (BCM2837):
+     *   0x00000000 to 0x3F000000: RAM space (NORMAL)
+     *   0x3F000000 to 0x40000000: Peripheral space (DEVICE)
+     *   0x40000000 to 0x41000000: Local peripherals (DEVICE)
      */
     
+#ifdef REAL
+    // RAM (Kernel, BSS, Stack, Framebuffer)
+    mmu_map(0, 0, 0x3F000000, PTE_AF | PTE_SH_INNER | PTE_MEMATTR_NORMAL);
+
+    // Peripherals (UART, Mailbox, EMMC, etc.)
+    mmu_map(0x3F000000, 0x3F000000, 0x01000000, PTE_AF | PTE_MEMATTR_DEVICE);
+
+    // ARM Local Peripherals (Timers, IRQ routing)
+    mmu_map(0x40000000, 0x40000000, 0x01000000, PTE_AF | PTE_MEMATTR_DEVICE);
+#else
     // Peripherals (UART, GIC, Virtio, etc.)
     mmu_map(0, 0, 0x40000000, PTE_AF | PTE_MEMATTR_DEVICE);
 
     // RAM (Kernel, BSS, Stack, Framebuffer)
     mmu_map(0x40000000, 0x40000000, 0x20000000, PTE_AF | PTE_SH_INNER | PTE_MEMATTR_NORMAL);
+#endif
 
     uart_puts("[mmu] Page tables set up. Invalidating BSS...\n");
     

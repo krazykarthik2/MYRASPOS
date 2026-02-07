@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "sched.h"
+#include "virtio.h"
 
 /* Real hardware IRQ entry/exit and VBAR setup.
    This provides the interrupt-driver API, handlers registration,
@@ -35,6 +36,7 @@ void irq_init(void) {
 
     for (int i = 0; i < MAX_IRQ_HANDLERS; ++i) handlers[i].fn = NULL;
     
+#ifndef REAL
     /* Enable GIC CPU Interface (Group 0 and 1) */
     volatile uint32_t *gicc_ctlr = (volatile uint32_t *)(GICC_BASE + GICC_CTLR);
     volatile uint32_t *gicc_pmr = (volatile uint32_t *)(GICC_BASE + GICC_PMR);
@@ -45,15 +47,14 @@ void irq_init(void) {
     volatile uint32_t *gicd_ctlr = (volatile uint32_t *)(GICD_BASE + GICD_CTLR);
     *gicd_ctlr = 0x1;
 
-    /* Mask all SPIs (Shared Peripheral Interrupts, ID >= 32) at the GIC Distributor.
-       We only support polling drivers (UART, Virtio) and internal Timer (PPI).
-       Unmasked SPIs causing unhandled IRQ storms will hang the kernel.
-       GICD_ICENABLERn clears enable bits. Register 0 covers 0-31 (SGI/PPI), 
-       Register 1 covers 32-63, etc. We mask 32-1020 (indexes 1-31). */
+    /* Mask all SPIs (Shared Peripheral Interrupts, ID >= 32) at the GIC Distributor. */
     volatile uint32_t *icenable = (volatile uint32_t *)(GICD_BASE + GICD_ICENABLER);
     for (int i = 0; i < 32; ++i) {
         icenable[i] = 0xFFFFFFFF;
     }
+#else
+    uart_puts("[irq] GIC skipped for REAL hardware; using polling for IO.\n");
+#endif
 }
 
 void irq_unmask(int irq_num) {
@@ -101,7 +102,6 @@ void irq_poll_and_dispatch(void) {
     if (uart_haschar()) {
         irq_dispatch(1);
     }
-    extern void virtio_input_poll(void);
     virtio_input_poll();
 }
 

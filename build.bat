@@ -1,4 +1,13 @@
 @echo ON
+set REAL_FLAG=
+set LINKER_SCRIPT=linkers/linker.ld
+if /I "%~1"=="--real" (
+    set REAL_FLAG=-DREAL
+    set LINKER_SCRIPT=linkers/linker_pi.ld
+)
+echo Building with REAL_FLAG=%REAL_FLAG%
+echo Using LINKER_SCRIPT=%LINKER_SCRIPT%
+
 @REM Always recreate disk.img to ensure assets are fresh
 echo Creating disk.img...
 python make_disk.py
@@ -9,7 +18,7 @@ del /F /Q temp\binaries\*.img
 del /F /Q temp\maps\*.map
 
 set GCC="aarch64/aarch64-none-elf-gcc.bat"
-set C_FLAGS=-fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK
+set C_FLAGS=-fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK %REAL_FLAG%
 
 call %GCC% %C_FLAGS% -c boot/start.S -o temp/objects/start.o 
 call %GCC% %C_FLAGS% -c kernel/vectors.S -o temp/objects/vectors.o
@@ -25,6 +34,7 @@ call %GCC% %C_FLAGS% -c kernel/timer.c -o temp/objects/timer.o
 call %GCC% %C_FLAGS% -c kernel/irq.c -o temp/objects/irq.o
 call %GCC% %C_FLAGS% -c kernel/framebuffer.c -o temp/objects/framebuffer.o
 call %GCC% %C_FLAGS% -c kernel/virtio.c -o temp/objects/virtio.o
+call %GCC% %C_FLAGS% -c kernel/rpi_fx.c -o temp/objects/rpi_fx.o
 call %GCC% %C_FLAGS% -c kernel/mmu.c -o temp/objects/mmu.o
 call %GCC% %C_FLAGS% -c kernel/diskfs.c -o temp/objects/diskfs.o
 call %GCC% %C_FLAGS% -c kernel/init.c -o temp/objects/init.o
@@ -79,7 +89,13 @@ call %GCC% %C_FLAGS% -c kernel/commands/free.c -o temp/objects/free.o
 
 
 
-call "aarch64/aarch64-none-elf-ld.bat" temp/objects/start.o temp/objects/mmu.o temp/objects/diskfs.o temp/objects/vectors.o temp/objects/swtch.o temp/objects/kernel.o temp/objects/uart.o temp/objects/palloc.o temp/objects/kmalloc.o temp/objects/ramfs.o temp/objects/lib.o temp/objects/syscall.o temp/objects/timer.o temp/objects/irq.o temp/objects/framebuffer.o temp/objects/virtio.o temp/objects/init.o temp/objects/programs.o temp/objects/echo.o temp/objects/help.o temp/objects/touch.o temp/objects/write.o temp/objects/cat.o temp/objects/ls.o temp/objects/rm.o temp/objects/mkdir.o temp/objects/rmdir.o temp/objects/cp.o temp/objects/mv.o temp/objects/grep.o temp/objects/head.o temp/objects/tail.o temp/objects/more.o temp/objects/tree.o temp/objects/shell.o temp/objects/sched.o temp/objects/panic.o temp/objects/service.o temp/objects/glob.o temp/objects/pty.o temp/objects/input.o temp/objects/wm.o temp/objects/terminal_app.o temp/objects/myra_app.o temp/objects/calculator_app.o temp/objects/files_app.o temp/objects/cursor.o temp/objects/keyboard_tester_app.o temp/objects/editor_app.o temp/objects/edit.o temp/objects/files.o temp/objects/image.o temp/objects/image_viewer.o temp/objects/lodepng.o temp/objects/lodepng_glue.o temp/objects/view.o temp/objects/clear.o temp/objects/ps.o temp/objects/sleep.o temp/objects/wait.o temp/objects/kill.o temp/objects/ramfs_tools.o temp/objects/systemctl.o temp/objects/free.o -T linkers/linker.ld -o temp/elfs/kernel.elf -Map temp/maps/kernel.map
+
+call "aarch64/aarch64-none-elf-ld.bat" temp/objects/start.o temp/objects/mmu.o temp/objects/diskfs.o temp/objects/vectors.o temp/objects/swtch.o temp/objects/kernel.o temp/objects/uart.o temp/objects/palloc.o temp/objects/kmalloc.o temp/objects/ramfs.o temp/objects/lib.o temp/objects/syscall.o temp/objects/timer.o temp/objects/irq.o temp/objects/framebuffer.o temp/objects/virtio.o temp/objects/rpi_fx.o temp/objects/init.o temp/objects/programs.o temp/objects/echo.o temp/objects/help.o temp/objects/touch.o temp/objects/write.o temp/objects/cat.o temp/objects/ls.o temp/objects/rm.o temp/objects/mkdir.o temp/objects/rmdir.o temp/objects/cp.o temp/objects/mv.o temp/objects/grep.o temp/objects/head.o temp/objects/tail.o temp/objects/more.o temp/objects/tree.o temp/objects/shell.o temp/objects/sched.o temp/objects/panic.o temp/objects/service.o temp/objects/glob.o temp/objects/pty.o temp/objects/input.o temp/objects/wm.o temp/objects/terminal_app.o temp/objects/myra_app.o temp/objects/calculator_app.o temp/objects/files_app.o temp/objects/cursor.o temp/objects/keyboard_tester_app.o temp/objects/editor_app.o temp/objects/edit.o temp/objects/files.o temp/objects/image.o temp/objects/image_viewer.o temp/objects/lodepng.o temp/objects/lodepng_glue.o temp/objects/view.o temp/objects/clear.o temp/objects/ps.o temp/objects/sleep.o temp/objects/wait.o temp/objects/kill.o temp/objects/ramfs_tools.o temp/objects/systemctl.o temp/objects/free.o -T %LINKER_SCRIPT% -o temp/elfs/kernel.elf -Map temp/maps/kernel.map
 @REM call "arm-none/arm-none-eabi-ld.bat" temp/objects/start.o temp/objects/kernel.o temp/objects/uart.o -T linkers/linker_pi.ld -o temp/elfs/kernel.elf -Map temp/maps/kernel.map 
 @REM call "arm-none/arm-none-eabi-objcopy.bat" -O binary -S temp/elfs/kernel.elf temp/binaries/kernel.img
 call "aarch64/aarch64-none-elf-objcopy.bat" -O binary temp/elfs/kernel.elf temp/binaries/kernel8.img
+
+
+if /I "%~1"=="--real" (
+    python make_rpi_boot.py
+)

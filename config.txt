@@ -1,0 +1,4 @@
+arm_64bit=1
+enable_uart=1
+disable_commandline_tags=1
+hdmi_force_hotplug=1

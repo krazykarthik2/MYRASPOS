@@ -14,7 +14,7 @@ struct disk_entry {
     char name[64];
     uint32_t size;
     uint32_t start_sector;
-};
+} __attribute__((packed));
 
 static struct disk_entry dir_cache[MAX_DISK_FILES];
 static int num_files = 0;
@@ -55,7 +55,6 @@ void diskfs_init(void) {
         return;
     }
 
-    /* Load directory from disk */
     /* Load directory from disk */
     int sectors_to_read = (sizeof(dir_cache) + SECTOR_SIZE - 1) / SECTOR_SIZE;
     for (int i = 0; i < sectors_to_read; i++) {

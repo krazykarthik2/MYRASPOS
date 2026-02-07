@@ -1,4 +1,4 @@
-call build.bat
+call build.bat %1
 @REM call "qemu/qemu-system-aarch64.bat" -machine virt -cpu cortex-15 -nographic -kernel temp/binaries/kernel8.img -serial mon:stdio
 echo Launching QEMU with SDL + ramfb (fallback) and virtio-gpu
 @REM call "qemu/qemu-system-arm.bat" -machine virt -cpu cortex-a15 -display sdl -device virtio-gpu-pci -device ramfb -kernel temp/elfs/kernel.elf -serial mon:stdio

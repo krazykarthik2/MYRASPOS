@@ -1,3 +1,4 @@
+#ifndef REAL
 #include "virtio.h"
 #include "uart.h"
 #include <stdint.h>
@@ -919,3 +920,4 @@ void virtio_input_irq_handler(void *arg) {
 
 int virtio_gpu_get_width(void) { return gpu_w; }
 int virtio_gpu_get_height(void) { return gpu_h; }
+#endif
