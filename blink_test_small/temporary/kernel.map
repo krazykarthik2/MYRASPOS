@@ -1,0 +1,44 @@
+
+Merging program properties
+
+
+Discarded input sections
+
+ .note.gnu.property
+                0x0000000000000000        0x0 boot.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+LOAD boot.o
+                0x0000000000080000                . = 0x80000
+
+.text           0x0000000000080000      0x238
+ *(.text.boot)
+ .text.boot     0x0000000000080000      0x238 boot.o
+                0x0000000000080000                _start
+ *(.text .text.*)
+ .text          0x0000000000080238        0x0 boot.o
+
+.rodata
+ *(.rodata .rodata.*)
+
+.data           0x0000000000081000        0x0
+ *(.data .data.*)
+ .data          0x0000000000081000        0x0 boot.o
+
+.bss            0x0000000000081000      0x100
+                0x0000000000081000                __bss_start = .
+ *(.bss .bss.*)
+ .bss           0x0000000000081000      0x100 boot.o
+ *(COMMON)
+                0x0000000000081100                __bss_end = .
+                0x0000000000081100                . = ALIGN (0x8)
+                0x0000000000091100                . = (. + 0x10000)
+                0x0000000000091100                stack_top = .
+OUTPUT(kernel.elf elf64-littleaarch64)
+LOAD linker stubs

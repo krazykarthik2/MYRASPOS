@@ -14,17 +14,18 @@ shutil.copy("temp/binaries/kernel8.img",
 shutil.copy("config.txt",
             f"{BOOT_DIR}/config.txt")
 
-shutil.copy("disk.img", f"{BOOT_DIR}/disk.img")
+
+# shutil.copy("disk.img", f"{BOOT_DIR}/disk.img")
 
 # Copy firmware
 required_files = [
     "start.elf",
     "fixup.dat",
-    "bcm2710-rpi-zero-2.dtb"
+    "bcm2710-rpi-zero-2-w.dtb"
 ]
 
 for f in required_files:
-    src = os.path.join(FIRMWARE_DIR, f)
+    src = os.path.join(FIRMWARE_DIR, f)   
     dst = os.path.join(BOOT_DIR, f)
 
     if not os.path.exists(src):

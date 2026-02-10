@@ -19,6 +19,9 @@ void rpi_input_poll(void);
 int rpi_blk_init(void);
 int rpi_blk_rw(uint64_t sector, void *buf, int write);
 
+void rpi_built_in_led_on(void);
+void rpi_built_in_led_off(void);
+
 #ifdef REAL
 #define virtio_init rpi_init
 #define virtio_gpu_init rpi_gpu_init

@@ -1,4 +1,4 @@
-arm_64bit=1
+core_freq=250
 enable_uart=1
-disable_commandline_tags=1
-hdmi_force_hotplug=1
+dtparam=act_led_trigger=none
+dtparam=act_led_activelow=on

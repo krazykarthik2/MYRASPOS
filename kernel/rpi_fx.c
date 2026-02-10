@@ -5,11 +5,31 @@
 #include <stdint.h>
 
 /* RPi Peripheral Base (BCM2837 / Pi Zero 2 W) */
-#define PBASE 0x3F000000ULL //chat gpt says it is very old and says to use 0xFE000000ULL  please note
-//chat gpt says it is very old and says to use 0xFE000000ULL  please note
-//chat gpt says it is very old and says to use 0xFE000000ULL  please note
-//chat gpt says it is very old and says to use 0xFE000000ULL  please note
-//chat gpt says it is very old and says to use 0xFE000000ULL  please note
+#define PBASE 0x3F000000ULL
+#define GPIO_BASE (PBASE + 0x00200000)
+
+#define GPIO_pin(pin) (*(volatile uint32_t*)(GPIO_BASE + ((pin)/10)*4))
+#define GPIO_ONBOARDLED 47
+
+
+#define GPFSEL4   ((volatile unsigned int*)(GPIO_BASE + 0x10))
+#define GPSET1    ((volatile unsigned int*)(GPIO_BASE + 0x20))
+#define GPCLR1    ((volatile unsigned int*)(GPIO_BASE + 0x2C))
+
+void delay(unsigned int ticks) {
+    for (volatile unsigned int i = 0; i < ticks; i++);
+}
+
+void rpi_built_in_led_on(void) {
+    /* LED ON (active LOW) */
+    *GPCLR1 = (1 << (GPIO_ONBOARDLED - 32));
+}
+
+void rpi_built_in_led_off(void) {
+    /* LED OFF */
+    *GPSET1 = (1 << (GPIO_ONBOARDLED - 32));
+}
+
 
 /* Mailbox Registers */
 #define MBOX_BASE    (PBASE + 0x0000B880)
@@ -74,6 +94,23 @@ int rpi_init(void) {
 
 int rpi_gpu_init(void) {
     uart_puts("[rpi] Initializing GPU via Mailbox...\n");
+
+    /* -------- Set GPIO47 as OUTPUT -------- */
+    unsigned int val = *GPFSEL4;
+    val &= ~(7 << 21);   /* clear bits for pin 47 (47-40=7, 7*3=21) */
+    val |=  (1 << 21);   /* set as output (001) */
+    *GPFSEL4 = val;
+
+    /* -------- 5 Second Blink Sequence -------- */
+    /* Assuming rpi_delay(500000) is roughly 0.25-0.5s on this hardware */
+    /* We'll do 10 cycles of 0.5s (0.25 on, 0.25 off) for ~5 seconds */
+    uart_puts("[rpi] Blinking built-in LED for 5 seconds...\n");
+    for(int i = 0; i < 10; i++) {
+        rpi_built_in_led_on();
+        delay(1000000); // 0.25s
+        rpi_built_in_led_off();
+        delay(1000000); // 0.25s
+    }
 
     mbox[0] = 35 * 4;
     mbox[1] = MBOX_REQUEST;
