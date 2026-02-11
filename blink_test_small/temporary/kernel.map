@@ -5,7 +5,7 @@ Merging program properties
 Discarded input sections
 
  .note.gnu.property
-                0x0000000000000000        0x0 boot.o
+                0x0000000000000000        0x0 kernel.o
 
 Memory Configuration
 
@@ -15,30 +15,70 @@ Name             Origin             Length             Attributes
 Linker script and memory map
 
 LOAD boot.o
+LOAD kernel.o
                 0x0000000000080000                . = 0x80000
 
-.text           0x0000000000080000      0x238
+.text           0x0000000000080000      0x6f4
  *(.text.boot)
- .text.boot     0x0000000000080000      0x238 boot.o
+ .text.boot     0x0000000000080000       0x40 boot.o
                 0x0000000000080000                _start
- *(.text .text.*)
- .text          0x0000000000080238        0x0 boot.o
+ *(.text*)
+ .text          0x0000000000080040        0x0 boot.o
+ .text          0x0000000000080040      0x6b4 kernel.o
+                0x0000000000080040                delay
+                0x0000000000080074                mbox_call
+                0x0000000000080118                set_uart_clock
+                0x00000000000801c8                framebuffer_init
+                0x00000000000803fc                fill_screen
+                0x00000000000804b0                gpio_init_uart
+                0x000000000008053c                gpio_init_led
+                0x000000000008057c                uart_init
+                0x00000000000805e0                uart_putc
+                0x0000000000080620                uart_puts
+                0x000000000008067c                kernel_main
 
-.rodata
- *(.rodata .rodata.*)
+.iplt           0x00000000000806f4        0x0
+ .iplt          0x00000000000806f4        0x0 boot.o
 
-.data           0x0000000000081000        0x0
- *(.data .data.*)
- .data          0x0000000000081000        0x0 boot.o
+.rodata         0x00000000000806f8       0x1e
+ *(.rodata*)
+ .rodata        0x00000000000806f8       0x1e kernel.o
 
-.bss            0x0000000000081000      0x100
-                0x0000000000081000                __bss_start = .
- *(.bss .bss.*)
- .bss           0x0000000000081000      0x100 boot.o
+.rela.dyn       0x0000000000080718        0x0
+ .rela.iplt     0x0000000000080718        0x0 boot.o
+ .rela.text.boot
+                0x0000000000080718        0x0 boot.o
+
+.data           0x0000000000080716        0x0
+ *(.data*)
+ .data          0x0000000000080716        0x0 boot.o
+ .data          0x0000000000080716        0x0 kernel.o
+
+.igot.plt       0x0000000000080718        0x0
+ .igot.plt      0x0000000000080718        0x0 boot.o
+                0x0000000000080718                . = ALIGN (0x8)
+                0x0000000000080718                __bss_start = .
+
+.bss            0x0000000000080720       0xa4
+ *(.bss*)
+ .bss           0x0000000000080720        0x0 boot.o
+ .bss           0x0000000000080720       0xa4 kernel.o
+                0x0000000000080720                mbox
+                0x00000000000807b0                framebuffer
+                0x00000000000807b8                fb_width
+                0x00000000000807bc                fb_height
+                0x00000000000807c0                fb_pitch
  *(COMMON)
-                0x0000000000081100                __bss_end = .
-                0x0000000000081100                . = ALIGN (0x8)
-                0x0000000000091100                . = (. + 0x10000)
-                0x0000000000091100                stack_top = .
+                0x00000000000807c4                __bss_end = .
+
+.pad            0x00000000000807c4    0x81000
+ FILL mask 0x00
+                0x0000000000081000                . = 0x81000
+ *fill*         0x00000000000807c4    0x81000 00
+                0x00000000001017c4                __end = .
 OUTPUT(kernel.elf elf64-littleaarch64)
 LOAD linker stubs
+
+.comment        0x0000000000000000       0x45
+ .comment       0x0000000000000000       0x45 kernel.o
+                                         0x46 (size before relaxing)
