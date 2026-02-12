@@ -18,64 +18,63 @@ LOAD boot.o
 LOAD kernel.o
                 0x0000000000080000                . = 0x80000
 
-.text           0x0000000000080000      0x6f4
+.text           0x0000000000080000      0x934
  *(.text.boot)
  .text.boot     0x0000000000080000       0x40 boot.o
                 0x0000000000080000                _start
  *(.text*)
  .text          0x0000000000080040        0x0 boot.o
- .text          0x0000000000080040      0x6b4 kernel.o
+ .text          0x0000000000080040      0x8f4 kernel.o
                 0x0000000000080040                delay
                 0x0000000000080074                mbox_call
                 0x0000000000080118                set_uart_clock
                 0x00000000000801c8                framebuffer_init
-                0x00000000000803fc                fill_screen
-                0x00000000000804b0                gpio_init_uart
-                0x000000000008053c                gpio_init_led
-                0x000000000008057c                uart_init
-                0x00000000000805e0                uart_putc
-                0x0000000000080620                uart_puts
-                0x000000000008067c                kernel_main
+                0x000000000008044c                fill_screen
+                0x0000000000080560                gpio_init_uart
+                0x00000000000805ec                gpio_init_led
+                0x000000000008062c                uart_init
+                0x0000000000080690                uart_putc
+                0x00000000000806d0                uart_puts
+                0x000000000008072c                kernel_main
 
-.iplt           0x00000000000806f4        0x0
- .iplt          0x00000000000806f4        0x0 boot.o
+.iplt           0x0000000000080934        0x0
+ .iplt          0x0000000000080934        0x0 boot.o
 
-.rodata         0x00000000000806f8       0x1e
- *(.rodata*)
- .rodata        0x00000000000806f8       0x1e kernel.o
-
-.rela.dyn       0x0000000000080718        0x0
- .rela.iplt     0x0000000000080718        0x0 boot.o
+.rela.dyn       0x0000000000080938        0x0
+ .rela.iplt     0x0000000000080938        0x0 boot.o
  .rela.text.boot
-                0x0000000000080718        0x0 boot.o
+                0x0000000000080938        0x0 boot.o
 
-.data           0x0000000000080716        0x0
+.rodata
+ *(.rodata*)
+
+.data           0x0000000000080934        0x0
  *(.data*)
- .data          0x0000000000080716        0x0 boot.o
- .data          0x0000000000080716        0x0 kernel.o
+ .data          0x0000000000080934        0x0 boot.o
+ .data          0x0000000000080934        0x0 kernel.o
 
-.igot.plt       0x0000000000080718        0x0
- .igot.plt      0x0000000000080718        0x0 boot.o
-                0x0000000000080718                . = ALIGN (0x8)
-                0x0000000000080718                __bss_start = .
+.igot.plt       0x0000000000080938        0x0
+ .igot.plt      0x0000000000080938        0x0 boot.o
+                0x0000000000080938                . = ALIGN (0x8)
+                0x0000000000080938                __bss_start = .
 
-.bss            0x0000000000080720       0xa4
+.bss            0x0000000000080940       0xa4
  *(.bss*)
- .bss           0x0000000000080720        0x0 boot.o
- .bss           0x0000000000080720       0xa4 kernel.o
-                0x0000000000080720                mbox
-                0x00000000000807b0                framebuffer
-                0x00000000000807b8                fb_width
-                0x00000000000807bc                fb_height
-                0x00000000000807c0                fb_pitch
+ .bss           0x0000000000080940        0x0 boot.o
+ .bss           0x0000000000080940       0xa4 kernel.o
+                0x0000000000080940                mbox
+                0x00000000000809d0                framebuffer
+                0x00000000000809d8                fb_width
+                0x00000000000809dc                fb_height
+                0x00000000000809e0                fb_pitch
  *(COMMON)
-                0x00000000000807c4                __bss_end = .
+                0x00000000000809e4                __bss_end = .
 
-.pad            0x00000000000807c4    0x81000
+.pad            0x00000000000809e4    0x81000
  FILL mask 0x00
                 0x0000000000081000                . = 0x81000
- *fill*         0x00000000000807c4    0x81000 00
-                0x00000000001017c4                __end = .
+ *fill*         0x00000000000809e4    0x81000 00
+                0x00000000001019e4                __end = .
 OUTPUT(kernel.elf elf64-littleaarch64)
 LOAD linker stubs
 

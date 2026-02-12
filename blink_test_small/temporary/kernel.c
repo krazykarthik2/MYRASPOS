@@ -10,7 +10,7 @@ void kernel_main(void);
 int mbox_call(unsigned char ch, volatile unsigned int *buffer);
 void set_uart_clock(void);
 int framebuffer_init(void);
-void fill_screen(unsigned int color);
+void fill_screen(unsigned int color1,unsigned int color2);
 
 #define GPIO_BASE   (MMIO_BASE + 0x200000)
 #define GPFSEL1     (*(volatile unsigned int*)(GPIO_BASE + 0x04))
@@ -79,69 +79,83 @@ void set_uart_clock()
 
     mbox_call(MBOX_CH_PROP, mbox);
 }
-
 int framebuffer_init()
 {
     mbox[0] = 35 * 4;
     mbox[1] = 0;
 
-    // Set physical width/height
+    // Tag 1: Set physical width/height
     mbox[2]  = 0x48003;
     mbox[3]  = 8;
-    mbox[4]  = 8;
+    mbox[4]  = 0;
     mbox[5]  = 1024;
     mbox[6]  = 768;
 
-    // Set virtual width/height
+    // Tag 2: Set virtual width/height
     mbox[7]  = 0x48004;
     mbox[8]  = 8;
-    mbox[9]  = 8;
+    mbox[9]  = 0;
     mbox[10] = 1024;
     mbox[11] = 768;
 
-    // Set depth
+    // Tag 3: Set depth
     mbox[12] = 0x48005;
     mbox[13] = 4;
-    mbox[14] = 4;
+    mbox[14] = 0;
     mbox[15] = 32;
 
-    // Allocate framebuffer
-    mbox[16] = 0x40001;
-    mbox[17] = 8;
-    mbox[18] = 4;
-    mbox[19] = 16;
-    mbox[20] = 0;
+    // Tag 4: Set pixel order (optional but good for consistency)
+    mbox[16] = 0x48006;
+    mbox[17] = 4;
+    mbox[18] = 0;
+    mbox[19] = 1; // RGB
 
-    // Get pitch
-    mbox[21] = 0x40008;
-    mbox[22] = 4;
-    mbox[23] = 4;
+    // Tag 5: Allocate framebuffer
+    mbox[20] = 0x40001;
+    mbox[21] = 8;
+    mbox[22] = 0;
+    mbox[23] = 16; // Alignment
     mbox[24] = 0;
 
-    mbox[25] = 0;
+    // Tag 6: Get pitch
+    mbox[25] = 0x40008;
+    mbox[26] = 4;
+    mbox[27] = 0;
+    mbox[28] = 0;
+
+    mbox[29] = 0; // End tag
 
     if (!mbox_call(MBOX_CH_PROP, mbox))
         return 0;
 
-    framebuffer = (unsigned int*)((unsigned long)mbox[19] & 0x3FFFFFFF);
-    fb_pitch    = mbox[24];
-    fb_width    = 1024;
-    fb_height   = 768;
+    // Use returned values
+    fb_width    = mbox[5];
+    fb_height   = mbox[6];
+    fb_pitch    = mbox[28];
+    framebuffer = (unsigned int*)((unsigned long)mbox[23] & 0x3FFFFFFF);
 
-    return 1;
+    return (framebuffer != 0);
 }
+void fill_screen(unsigned int color1,unsigned int color2){
+    unsigned int block = 32; // size of each square (32x32 pixels)
 
-void fill_screen(unsigned int color)
-{
     for (unsigned int y = 0; y < fb_height; y++)
     {
         unsigned int *row = (unsigned int*)((unsigned long)framebuffer + y * fb_pitch);
+
         for (unsigned int x = 0; x < fb_width; x++)
         {
-            row[x] = color;
+            unsigned int x_block = x / block;
+            unsigned int y_block = y / block;
+
+            if ((x_block + y_block) % 2 == 0)
+                row[x] = color1;  // White (ARGB)
+            else
+                row[x] = color2;  // Black (ARGB)
         }
     }
 }
+
 
 void gpio_init_uart()
 {
@@ -192,6 +206,11 @@ void uart_puts(const char* s)
     }
 }
 
+#define COLOR_RED 0xFF0000FF
+#define COLOR_GREEN 0xFF00FF00
+#define COLOR_BLUE 0xFFFF0000
+#define COLOR_WHITE 0xFFFFFFFF
+#define COLOR_BLACK 0x00000000
 void kernel_main()
 {
     gpio_init_uart();
@@ -199,19 +218,56 @@ void kernel_main()
     set_uart_clock();
     uart_init();
 
-    if (framebuffer_init())
+     for(int i=0;i<3;i++)// three blinks to indicate the kernel is loaded
     {
-        fill_screen(0x00FFFFFF);   // White
+        GPSET0 = (1 << 16);
+        delay(1000000); //1 sec
+        GPCLR0 = (1 << 16);
+        delay(1000000); //1 sec
     }
-
-    uart_puts("PL011 AND FRAMEBUFFER READY\r\n");
-
+if (framebuffer_init())
+{
+    
+        fill_screen(COLOR_RED,COLOR_GREEN); // repeating pattern 
+    // fast blink = success
+    for(int i=20;i>0;i--)
+    {
+        GPSET0 = (1 << 16);
+        delay(500000); //half sec
+        GPCLR0 = (1 << 16);
+        delay(500000); //half sec
+    }
+    fill_screen(COLOR_RED,COLOR_GREEN);
+     // fast blink = success
+    for(int i=20;i>0;i--)
+    {
+        GPSET0 = (1 << 16);
+        delay(500000); //half sec
+        GPCLR0 = (1 << 16);
+        delay(500000); //half sec
+    }
+    fill_screen(COLOR_GREEN,COLOR_BLUE);
+     // fast blink = success
+    for(int i=20;i>0;i--)
+    {
+        GPSET0 = (1 << 16);
+        delay(500000); //half sec 
+        GPCLR0 = (1 << 16);
+        delay(500000); //half sec
+    }
+    fill_screen(COLOR_BLACK,COLOR_WHITE);
+    
+}
+else
+{
+    // slow blink = failure
     while (1)
     {
-        GPSET0 = (1 << 16);   // LED ON
-        delay(500000);
-
-        GPCLR0 = (1 << 16);   // LED OFF
-        delay(500000);
+        GPSET0 = (1 << 16);
+        delay(1000000); //1 sec
+        GPCLR0 = (1 << 16);
+        delay(1000000); //1 sec
     }
+}
+
 }
