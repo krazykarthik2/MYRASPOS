@@ -1,4 +1,5 @@
 .section .text
+.align 11
 .global vectors
 .global exception_entry
 

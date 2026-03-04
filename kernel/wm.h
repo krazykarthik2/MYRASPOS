@@ -60,5 +60,6 @@ void wm_get_mouse_state(int *x, int *y, int *btn);
 int wm_is_focused(struct window *win);
 int wm_pop_key_event(struct window *win, struct wm_input_event *ev);
 void wm_start_task(void);
+void wm_request_redraw(void);
 
 #endif

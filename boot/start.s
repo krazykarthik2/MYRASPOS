@@ -1,70 +1,26 @@
-/* AArch64 startup code */
-
-.section .text.boot
+.section ".text.boot"
 .global _start
-.type _start, %function
 
 _start:
-    /* ----------------------------------------------------
-     * 1. Ensure we are in EL1
-     * QEMU -machine virt starts in EL1 already,
-     * but we defensively handle EL2 just in case.
-     * ---------------------------------------------------- */
-
-    mrs x0, CurrentEL
-    lsr x0, x0, #2
-    cmp x0, #1
-    beq 1f
-
-    /* If somehow in EL2, drop to EL1 */
-    mov x0, #(1 << 31)        /* EL1h */
-    msr spsr_el2, x0
-    adr x0, 1f
-    msr elr_el2, x0
-    eret
-
-1:
-    /* ----------------------------------------------------
-     * 2. Disable interrupts
-     * ---------------------------------------------------- */
-    msr daifset, #0xf
-    
-    /* ----------------------------------------------------
-     * 2.1 Set up Exception Vectors
-     * ---------------------------------------------------- */
-    ldr x0, =vectors
-    msr vbar_el1, x0
-
-    /* 2.2 Unmask Exceptions (DAIF) to catch errors/IRQs */
-    /* MASKED: We are polling IO, and unhandled IRQs cause hang */
-    /* msr daifclr, #0xf */
-
-    /* ----------------------------------------------------
-     * 3. Set up stack
-     * Stack must be 16-byte aligned in AArch64
-     * ---------------------------------------------------- */
+    // Set stack pointer from linker symbol
     ldr x0, =stack_top
     mov sp, x0
 
-    /* ----------------------------------------------------
-     * 4. Zero BSS
-     * ---------------------------------------------------- */
-    ldr x0, =__bss_start
-    ldr x1, =__bss_end
-    mov x2, #0
+    // Zero out BSS
+    ldr x5, =__bss_start
+    ldr x6, =__bss_end
+    cmp x5, x6
+    b.ge 2f
+1:
+    str xzr, [x5], #8
+    cmp x5, x6
+    b.lt 1b
+2:
 
-bss_clear:
-    cmp x0, x1
-    b.ge bss_done
-    str x2, [x0], #8
-    b bss_clear
-
-bss_done:
-    /* ----------------------------------------------------
-     * 5. Jump to C kernel
-     * ---------------------------------------------------- */
+    // Jump to kernel_main
     bl kernel_main
 
+    // If kernel_main returns, halt
 halt:
-    wfi
+    wfe
     b halt

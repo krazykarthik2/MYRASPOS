@@ -35,4 +35,5 @@ SECTIONS
   . = ALIGN(8);
   . = . + 0x10000;
   stack_top = .;
+  __end = .;
 }

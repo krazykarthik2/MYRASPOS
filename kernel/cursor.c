@@ -5,9 +5,8 @@
 #include "input.h"
 #include "virtio.h"
 #include "uart.h"
-
-#define CURSOR_W 12
-#define CURSOR_H 19
+#include "timer.h"
+#include "cursor.h"
 
 static uint32_t bg_buffer[CURSOR_W * CURSOR_H];
 static int last_x = -1, last_y = -1;
@@ -33,8 +32,8 @@ void save_bg(int nx, int ny) {
 
 void draw_cursor_overlay(int x, int y) {
     /* Better arrow cursor (matching wm.c but as overlay) */
-    uint32_t c = 0xFFFFFF;     /* white */
-    uint32_t o = 0x000000;     /* black outline */
+    uint32_t c = 0xFFFFFFFF;     /* white (with alpha) */
+    uint32_t o = 0xFF000000;     /* black outline (with alpha) */
 
     /* Outline */
     for(int i=0; i<12; i++) fb_set_pixel(x+0, y+i, o);
@@ -74,6 +73,34 @@ void cursor_task(void *arg) {
     }
 }
 
+void mouse_sim_task(void *arg) {
+    (void)arg;
+    int step = 0;
+    int dir = 0; // 0: Right, 1: Down, 2: Left, 3: Up
+    
+    while (1) {
+        timer_sleep_ms(50);
+        
+        int dx = 0, dy = 0;
+        if (dir == 0) dx = 5;
+        else if (dir == 1) dy = 5;
+        else if (dir == 2) dx = -5;
+        else if (dir == 3) dy = -5;
+        
+        input_push_event(INPUT_TYPE_REL, 0, dx);
+        input_push_event(INPUT_TYPE_REL, 1, dy);
+        
+        step++;
+        if (step >= 40) {
+            step = 0;
+            dir = (dir + 1) % 4;
+        }
+    }
+}
+
 void cursor_init(void) {
     task_create_with_stack(cursor_task, NULL, "cursor_overlay", 16);
+#ifdef REAL
+    task_create(mouse_sim_task, NULL, "mouse_sim");
+#endif
 }

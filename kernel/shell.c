@@ -58,32 +58,34 @@ char *init_resolve_path(const char *p) {
    does NOT normalize '..' */
 static char *resolve_path_alloc(const char *p) {
     if (!p) return NULL;
+    uart_puts("[shell] resolving: "); uart_puts(p);
+    char *res;
     if (p[0] == '/') {
-        return normalize_abs_path_alloc(p);
+        res = normalize_abs_path_alloc(p);
+    } else {
+        /* relative -> join with shell_cwd and normalize */
+        size_t clen = strlen(shell_cwd);
+        size_t plen = strlen(p);
+        if (strcmp(shell_cwd, "/") == 0) {
+            size_t need = 1 + plen + 1;
+            char *tmp = kmalloc(need);
+            if (!tmp) return NULL;
+            tmp[0] = '/'; memcpy(tmp+1, p, plen+1);
+            res = normalize_abs_path_alloc(tmp);
+            kfree(tmp);
+        } else {
+            size_t need = clen + 1 + plen + 1;
+            char *tmp = kmalloc(need);
+            if (!tmp) return NULL;
+            memcpy(tmp, shell_cwd, clen);
+            tmp[clen] = '/';
+            memcpy(tmp + clen + 1, p, plen + 1);
+            res = normalize_abs_path_alloc(tmp);
+            kfree(tmp);
+        }
     }
-    /* relative -> join with shell_cwd and normalize */
-    size_t clen = strlen(shell_cwd);
-    size_t plen = strlen(p);
-    /* build joined path string */
-    if (strcmp(shell_cwd, "/") == 0) {
-        /* avoid double slash: "/" + p -> "/p" */
-        size_t need = 1 + plen + 1;
-        char *tmp = kmalloc(need);
-        if (!tmp) return NULL;
-        tmp[0] = '/'; memcpy(tmp+1, p, plen+1);
-        char *norm = normalize_abs_path_alloc(tmp);
-        kfree(tmp);
-        return norm;
-    }
-    size_t need = clen + 1 + plen + 1;
-    char *tmp = kmalloc(need);
-    if (!tmp) return NULL;
-    memcpy(tmp, shell_cwd, clen);
-    tmp[clen] = '/';
-    memcpy(tmp + clen + 1, p, plen + 1);
-    char *norm = normalize_abs_path_alloc(tmp);
-    kfree(tmp);
-    return norm;
+    uart_puts(" -> "); uart_puts(res ? res : "NULL"); uart_puts("\n");
+    return res;
 }
 
 /* Normalize an absolute path, resolving '.' and '..' components and collapsing

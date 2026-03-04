@@ -8,6 +8,8 @@
 #include "wm.h"
 #include "virtio.h"
 #include "uart.h"
+#include "framebuffer.h"
+#include "irq.h"
 // #include "apps/terminal_app.h"
 
 /* Exported helpers for shell to call which perform syscalls on behalf of shell */
@@ -113,7 +115,15 @@ int init_ramfs_write(const char *name, const void *buf, size_t len, int append) 
 /* Start the shell task (shell_main implemented in shell.c) */
 extern void shell_main(void *arg);
 void init_start_shell(void) {
+    /* Wait for basic disk structures to be syncable */
+    for(volatile int i=0; i<1000000; i++);
+#ifdef DEBUG
+    uart_puts("init_start_shell called\n");
+#endif
     task_create(shell_main, NULL, "shell");
+    fb_fill(0xFF00FFFF); // CYAN
+    fb_put_text_centered("INIT: SHELL STARTED", 0xFFFFFFFF);
+    virtio_gpu_flush();
 }
 
 void init_main(void *arg) {
@@ -123,7 +133,10 @@ void init_main(void *arg) {
         for (;;) yield();
     }
     initialized = 1;
-    init_puts("[init] starting services...\n");
+    irq_enable();
+#ifdef DEBUG
+    uart_puts("[init] starting services...\n");
+#endif
 
     /* create some default service units */
     init_ramfs_mkdir("/etc/");
@@ -154,8 +167,10 @@ void init_main(void *arg) {
     init_service_load_all();
     init_service_start("boot");
     init_service_start("info");
+#ifdef DEBUG
+    uart_puts("[init] services started.\n");
+#endif
 
-    /* Start GUI and Input system */
     /* Start GUI and Input system */
     // Always try to start GUI for now, even if input fails
     virtio_input_init();
@@ -165,24 +180,54 @@ void init_main(void *arg) {
     files_init();
     
     // Initialize DiskFS and load assets
+#ifdef DEBUG
     uart_puts("[init] DEBUG: about to init diskfs...\n");
+#endif
     extern void diskfs_init(void);
     extern void diskfs_sync_to_ramfs(void);
     diskfs_init();
     diskfs_sync_to_ramfs();
 
     init_puts("[init] GUI subsystem starting...\n");
+    
+    // DEBUG: On-screen progress
+    fb_fill(0xFF00FFFF); // CYAN
+    fb_put_text_centered("INIT: CALLING WM_INIT", 0xFFFFFFFF);
+    virtio_gpu_flush();
+    
     wm_init();
+
+    fb_fill(0xFFFF00FF); // MAGENTA
+    fb_put_text_centered("INIT: CALLING WM_START_TASK", 0xFFFFFFFF);
+    virtio_gpu_flush();
+
     wm_start_task();
     /* Terminal is no longer auto-started - user can launch from Myra */
 
     init_puts("[init] starting shell...\n");
+
+    fb_fill(0xFFFFFF00); // YELLOW
+    fb_put_text_centered("INIT: STARTING SHELL", 0xFF000000);
+    virtio_gpu_flush();
+
     init_start_shell();
+    
+    fb_fill(0xFFFFFF00); // YELLOW
+    fb_put_text_centered("INIT: STARTING DISKFS SYNC", 0xFF000000);
     
     /* Sync files created during init to diskfs */
     extern void diskfs_sync_from_ramfs(void);
     diskfs_sync_from_ramfs();
 
+    fb_fill(0xFFFFFF00); // YELLOW
+    fb_put_text_centered("INIT: DISKFS SYNCED", 0xFF000000);
+    virtio_gpu_flush();
+    
+    // Give time to read before switching to GUI
+    for(volatile int i=0; i<1000000; i++) {}
+    
+    wm_request_redraw();
+    
     for (;;) {
         yield();
     }

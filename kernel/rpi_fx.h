@@ -15,17 +15,24 @@ int rpi_gpu_get_width(void);
 int rpi_gpu_get_height(void);
 int rpi_input_init(void);
 void rpi_input_poll(void);
+void rpi_gpu_flush_rect(int,int,int,int);
 
 int rpi_blk_init(void);
 int rpi_blk_rw(uint64_t sector, void *buf, int write);
 
-void rpi_built_in_led_on(void);
-void rpi_built_in_led_off(void);
+
+
+void rpi_gpio16_init(void);
+void rpi_gpio16_on(void);
+void rpi_gpio16_off(void);
+void delay(unsigned int count);
+
 
 #ifdef REAL
 #define virtio_init rpi_init
 #define virtio_gpu_init rpi_gpu_init
 #define virtio_gpu_flush rpi_gpu_flush
+#define virtio_gpu_flush_rect rpi_gpu_flush_rect
 #define virtio_gpu_get_width rpi_gpu_get_width
 #define virtio_gpu_get_height rpi_gpu_get_height
 #define virtio_input_init rpi_input_init

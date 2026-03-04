@@ -4,6 +4,7 @@
 #include "glob.h"
 #include "kmalloc.h"
 #include <stddef.h>
+#include "uart.h"
 
 static int ls_error_notfound(const char *arg, char *out, size_t out_cap);
 
@@ -14,10 +15,12 @@ int prog_ls(int argc, char **argv, const char *in, size_t in_len, char *out, siz
     if (argc >= 2) arg = argv[1];
     /* if no arg -> list current working directory */
     if (!arg) {
-        const char *cwd = init_resolve_path(".");
+        char *cwd = init_resolve_path(".");
         if (!cwd) return -1;
+        uart_puts("[ls] listing CWD: "); uart_puts(cwd); uart_puts("\n");
         int r = init_ramfs_list(cwd, out, out_cap);
-        kfree((void*)cwd);
+        kfree(cwd);
+        uart_puts("[ls] ramfs_list returned "); uart_putu(r >= 0 ? r : 0); uart_puts(" bytes.\n");
         if (r < 0) return (int)r;
         return r;
     }
@@ -73,13 +76,14 @@ int prog_ls(int argc, char **argv, const char *in, size_t in_len, char *out, siz
         if (!rp) return -1;
         int r = init_ramfs_list(rp, out, out_cap);
         kfree(rp);
-        if (r >= 0) return r;
+        if (r > 0) return r;
+        /* if r == 0, it might be a file or empty dir, continue to file check */
     }
     /* else if exact file exists -> print basename */
-    char tmp[4];
+    char tmp_buf[4];
     char *rp2 = init_resolve_path(arg);
     if (!rp2) return -1;
-    int exist = init_ramfs_read(rp2, tmp, sizeof(tmp));
+    int exist = init_ramfs_read(rp2, tmp_buf, sizeof(tmp_buf));
     kfree(rp2);
     if (exist >= 0) {
         /* print basename */

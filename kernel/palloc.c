@@ -19,9 +19,11 @@ void palloc_init(void *pool_start, size_t pages) {
     // All free initially
     memset(page_bitmap, 0, sizeof(page_bitmap));
     
+#ifdef DEBUG
     uart_puts("[palloc] pool_start="); uart_put_hex((uintptr_t)pool_start);
     uart_puts(" pages="); uart_put_hex(pages); 
     uart_puts(" max="); uart_put_hex(PALLOC_MAX_PAGES); uart_puts("\n");
+#endif
 }
 
 static int is_free(size_t idx) {
@@ -38,13 +40,17 @@ static void mark_free(size_t idx) {
 
 void *palloc_alloc_contig(size_t count) {
     if (total_pages == 0) {
+#ifdef DEBUG
         uart_puts("[palloc] ERROR: allocation requested before init or pool empty!\n");
+#endif
         return NULL;
     }
     
     if (count == 0 || count > total_pages) {
+#ifdef DEBUG
         uart_puts("[palloc] ERROR: invalid count="); uart_put_hex((uint32_t)count);
         uart_puts(" total_pages="); uart_put_hex((uint32_t)total_pages); uart_puts("\n");
+#endif
         return NULL;
     }
     
@@ -72,8 +78,9 @@ void *palloc_alloc_contig(size_t count) {
         }
     }
     
-    
+#ifdef DEBUG
     uart_puts("\n[palloc] CRITICAL: OUT OF MEMORY (CONTIG)! requested="); uart_put_hex((uint32_t)count); uart_puts(" pages\n");
+#endif
     irq_restore(flags);
     return NULL;
 }
@@ -86,13 +93,17 @@ void palloc_free(void *ptr, size_t count) {
     if (!ptr || count == 0) return;
     uintptr_t offset = (uintptr_t)ptr - (uintptr_t)pool_start_addr;
     if (offset % PAGE_SIZE != 0) {
+#ifdef DEBUG
         uart_puts("[palloc] free invalid align\n");
+#endif
         return;
     }
     
     size_t idx = offset / PAGE_SIZE;
     if (idx + count > total_pages) {
+#ifdef DEBUG
          uart_puts("[palloc] free out of bounds\n");
+#endif
          return;
     }
     

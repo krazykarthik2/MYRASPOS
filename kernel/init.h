@@ -32,5 +32,6 @@ int init_ramfs_import(const char *path);
 
 /* start the shell task from init */
 void init_start_shell(void);
+void init_main(void *arg);
 
 #endif

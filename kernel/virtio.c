@@ -1,4 +1,3 @@
-#ifndef REAL
 #include "virtio.h"
 #include "uart.h"
 #include <stdint.h>
@@ -156,7 +155,7 @@ void virtio_dcache_clean(void *start, size_t size) {
 }
 
 /* Invalidate: device wrote, host will read (discard cache) */
-void virtio_dcache_invalidate(void *start, size_t size) {
+void virtio_invalidate_dcache(void *start, size_t size) {
     uintptr_t s = (uintptr_t)start & ~(63UL);
     uintptr_t e = (uintptr_t)start + size;
     for (; s < e; s += 64) {
@@ -168,6 +167,7 @@ void virtio_dcache_invalidate(void *start, size_t size) {
 void virtio_flush_dcache(void *start, size_t size) {
     virtio_dcache_clean(start, size);
 }
+
 
 static int virtio_gpu_send_command_nolock(void *req, size_t req_len, void *resp, size_t resp_len) {
     if (!gpu_mmio_base || !gpu_qmem) return -1;
@@ -233,15 +233,17 @@ static int virtio_gpu_send_command_nolock(void *req, size_t req_len, void *resp,
     }
     
     if (timeout <= 0) {
+#ifdef DEBUG
         uart_puts("[virtio] command timeout (cmd=");
         uart_put_hex(*(uint32_t *)req); uart_puts(")\n");
+#endif
         /* DANGER: We leave the address in the queue. 
            But since it's a static buffer now, it won't corrupt the stack. */
         return -1;
     }
     
     /* Invalidate response data so we see device update */
-    virtio_dcache_invalidate(gpu_qmem + resp_data_off, resp_len);
+    virtio_invalidate_dcache(gpu_qmem + resp_data_off, resp_len);
     __asm__ volatile("dmb sy" ::: "memory");
 
     memcpy(resp, gpu_qmem + resp_data_off, resp_len);
@@ -264,15 +266,22 @@ static int virtio_gpu_send_command(void *req, size_t req_len, void *resp, size_t
  * probing and negotiation code without changing the callers.
  */
 
+#ifndef REAL
 int virtio_init(void) {
+#ifdef DEBUG
     uart_puts("[virtio] virtio_init: probe start\n");
     /* No platform-wide virtio enumeration implemented yet. */
     uart_puts("[virtio] virtio_init: no virtio bus support (stub)\n");
+#endif
     return -1;
 }
+#endif
 
+#ifndef REAL
 int virtio_gpu_init(void) {
+#ifdef DEBUG
     uart_puts("[virtio] virtio_gpu_init: attempting to initialize virtio-gpu\n");
+#endif
     /*
      * TODO: implement the following steps:
      * 1) Probe PCI/virtio bus for a device with vendor/device IDs
@@ -301,19 +310,25 @@ int virtio_gpu_init(void) {
         
         uint32_t dev_id = r[2]; // offset 0x08
         uint32_t version = r[1]; // offset 0x04
+#ifdef DEBUG
         uart_puts("[virtio] slot "); uart_put_hex(i); 
         uart_puts(": dev="); uart_put_hex(dev_id); 
         uart_puts(" ver="); uart_put_hex(version); uart_puts("\n");
+#endif
 
         if (dev_id == 16u) {
             found_base = base;
+#ifdef DEBUG
             uart_puts("[virtio] found virtio-gpu at 0x"); uart_put_hex(found_base); uart_puts("\n");
+#endif
             break;
         }
     }
 
     if (!found_base) {
+#ifdef DEBUG
         uart_puts("[virtio] virtio-gpu not found\n");
+#endif
         return -1;
     }
 
@@ -340,13 +355,23 @@ int virtio_gpu_init(void) {
         /* set FEATURES_OK for modern */
         *R(0x070) |= 8; /* FEATURES_OK */
         uint32_t status = *R(0x070);
-        if (!(status & 8u)) { uart_puts("[virtio] FEATURES_OK not accepted\n"); return -1; }
+        if (!(status & 8u)) { 
+#ifdef DEBUG
+            uart_puts("[virtio] FEATURES_OK not accepted\n"); 
+#endif
+            return -1; 
+        }
     }
 
     /* virtqueue setup: use queue 0 */
     *R(0x030) = 0; /* QUEUE_SEL = 0 */
     uint32_t qmax = *R(0x034); /* QUEUE_NUM_MAX */
-    if (qmax == 0) { uart_puts("[virtio] queue 0 not available\n"); return -1; }
+    if (qmax == 0) { 
+#ifdef DEBUG
+        uart_puts("[virtio] queue 0 not available\n"); 
+#endif
+        return -1; 
+    }
     uint32_t qsize = qmax < 16 ? qmax : 16;
     *R(0x038) = qsize; /* QUEUE_NUM */
 
@@ -390,30 +415,39 @@ int virtio_gpu_init(void) {
     /* DRIVER_OK */
     *R(0x070) |= 4;
 
+#ifdef DEBUG
     uart_puts("[virtio] virtqueue set: qsize="); uart_put_hex(qsize); uart_puts(" phys=0x"); uart_put_hex((uint32_t)(phys & 0xffffffffu)); uart_puts("\n");
+#endif
 
         gpu_mmio_base = VIRTIO_GPU_MMIO_BASE;
         gpu_qmem = queue_mem;
 
-        /* GET_DISPLAY_INFO */
+#ifdef DEBUG
         uart_puts("[virtio] sending GET_DISPLAY_INFO...\n");
+#endif
         struct virtio_gpu_ctrl_hdr gdi_cmd;
         memset(&gdi_cmd, 0, sizeof(gdi_cmd));
         gdi_cmd.type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
         
         struct virtio_gpu_resp_display_info gdi_resp;
         if (virtio_gpu_send_command(&gdi_cmd, sizeof(gdi_cmd), &gdi_resp, sizeof(gdi_resp)) < 0) {
+#ifdef DEBUG
             uart_puts("[virtio] display info command failed\n");
+#endif
             return -1;
         }
 
         if (gdi_resp.hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO) {
+#ifdef DEBUG
             uart_puts("[virtio] display info response error (type=");
             uart_put_hex(gdi_resp.hdr.type); uart_puts(")\n");
+#endif
             return -1;
         }
         
+#ifdef DEBUG
         uart_puts("[virtio] display info received.\n");
+#endif
 
         gpu_w = 0; gpu_h = 0;
         for (int i = 0; i < 16; i++) {
@@ -421,21 +455,27 @@ int virtio_gpu_init(void) {
                 gpu_scanout_id = i;
                 gpu_w = gdi_resp.pmodes[i].rect.width;
                 gpu_h = gdi_resp.pmodes[i].rect.height;
+#ifdef DEBUG
                 uart_puts("[virtio] found enabled scanout: "); 
                 uart_put_hex(gpu_w); uart_puts("x"); uart_put_hex(gpu_h); uart_puts("\n");
+#endif
                 break;
             }
         }
 
         if (gpu_w == 0) {
+#ifdef DEBUG
             uart_puts("[virtio] no enabled scanout reported; defaulting to 800x600 scanout 0\n");
+#endif
             gpu_w = 800;
             gpu_h = 600;
             gpu_scanout_id = 0;
         }
 
         /* RESOURCE_CREATE_2D */
+#ifdef DEBUG
         uart_puts("[virtio] sending RESOURCE_CREATE_2D...\n");
+#endif
         struct virtio_gpu_resource_create_2d rc_cmd;
         memset(&rc_cmd, 0, sizeof(rc_cmd));
         rc_cmd.hdr.type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D;
@@ -448,12 +488,16 @@ int virtio_gpu_init(void) {
         memset(&gen_resp, 0, sizeof(gen_resp));
         int rc_err = virtio_gpu_send_command(&rc_cmd, sizeof(rc_cmd), &gen_resp, sizeof(gen_resp));
         if (rc_err < 0 || gen_resp.type != VIRTIO_GPU_RESP_OK_NODATA) {
+#ifdef DEBUG
             uart_puts("[virtio] resource create failed\n");
+#endif
             return -1;
         }
 
         /* RESOURCE_ATTACH_BACKING */
+#ifdef DEBUG
         uart_puts("[virtio] sending RESOURCE_ATTACH_BACKING...\n");
+#endif
         struct virtio_gpu_resource_attach_backing ab_cmd;
         memset(&ab_cmd, 0, sizeof(ab_cmd));
         ab_cmd.hdr.type = VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING;
@@ -463,12 +507,16 @@ int virtio_gpu_init(void) {
         ab_cmd.entries[0].length = gpu_w * gpu_h * 4;
 
         if (virtio_gpu_send_command(&ab_cmd, sizeof(ab_cmd), &gen_resp, sizeof(gen_resp)) < 0 || gen_resp.type != VIRTIO_GPU_RESP_OK_NODATA) {
+#ifdef DEBUG
             uart_puts("[virtio] attach backing failed\n");
+#endif
             return -1;
         }
 
         /* SET_SCANOUT */
+#ifdef DEBUG
         uart_puts("[virtio] sending SET_SCANOUT...\n");
+#endif
         struct virtio_gpu_set_scanout ss_cmd;
         memset(&ss_cmd, 0, sizeof(ss_cmd));
         ss_cmd.hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
@@ -478,23 +526,36 @@ int virtio_gpu_init(void) {
         ss_cmd.r.width = gpu_w; ss_cmd.r.height = gpu_h;
 
         if (virtio_gpu_send_command(&ss_cmd, sizeof(ss_cmd), &gen_resp, sizeof(gen_resp)) < 0 || gen_resp.type != VIRTIO_GPU_RESP_OK_NODATA) {
+#ifdef DEBUG
             uart_puts("[virtio] set scanout failed\n");
+#endif
         }
 
         gpu_active = 1;
+
+        /* Initialize generic framebuffer layer */
+        fb_init((void*)0x42000000, gpu_w, gpu_h, gpu_w * 4);
+
         return 0;
 }
+#endif
 
-void virtio_gpu_flush(void) {
+#ifndef REAL
+void virtio_gpu_flush_rect(int x, int y, int w, int h) {
     if (!gpu_active) return;
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > gpu_w) w = gpu_w - x;
+    if (y + h > gpu_h) h = gpu_h - y;
+    if (w <= 0 || h <= 0) return;
 
     unsigned long flags = gpu_acquire_lock();
     struct virtio_gpu_transfer_to_host_2d *th_cmd = (struct virtio_gpu_transfer_to_host_2d *)gpu_req_static;
     memset(th_cmd, 0, sizeof(*th_cmd));
     th_cmd->hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D;
     th_cmd->resource_id = gpu_res_id;
-    th_cmd->r.x = 0; th_cmd->r.y = 0;
-    th_cmd->r.width = gpu_w; th_cmd->r.height = gpu_h;
+    th_cmd->r.x = x; th_cmd->r.y = y;
+    th_cmd->r.width = w; th_cmd->r.height = h;
     th_cmd->offset = 0;
 
     struct virtio_gpu_ctrl_hdr *gen_resp = (struct virtio_gpu_ctrl_hdr *)gpu_resp_static;
@@ -508,15 +569,21 @@ void virtio_gpu_flush(void) {
     memset(fl_cmd, 0, sizeof(*fl_cmd));
     fl_cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_FLUSH;
     fl_cmd->resource_id = gpu_res_id;
-    fl_cmd->r.x = 0; fl_cmd->r.y = 0;
-    fl_cmd->r.width = gpu_w; fl_cmd->r.height = gpu_h;
+    fl_cmd->r.x = x; fl_cmd->r.y = y;
+    fl_cmd->r.width = w; fl_cmd->r.height = h;
 
     virtio_gpu_send_command_nolock(fl_cmd, sizeof(*fl_cmd), gen_resp, sizeof(*gen_resp));
     gpu_release_lock(flags);
 }
 
+void virtio_gpu_flush(void) {
+    virtio_gpu_flush_rect(0, 0, gpu_w, gpu_h);
+}
+#endif
 
 
+
+#ifndef REAL
 int virtio_input_init(void) {
     // uart_puts("[virtio] searching for virtio-input devices...\n");
     num_input_devs = 0;
@@ -527,17 +594,21 @@ int virtio_input_init(void) {
         if (r[0] != 0x74726976u) continue;
         if (r[2] == 18u) { // dev_id 18 = input
             uint32_t version = r[1];
+#ifdef DEBUG
             uart_puts("[virtio] found virtio-input (v");
             uart_put_hex(version);
             uart_puts(") at 0x"); 
             uart_put_hex(base); uart_puts("\n");
+#endif
 
             struct virtio_input_state *dev = &input_devs[num_input_devs];
             dev->mmio_base = base;
             
             #define RI_INIT(off) ((volatile uint32_t *)(base + (off)))
             
+#ifdef DEBUG
             uart_puts("[virtio] input: reset...\n");
+#endif
             *RI_INIT(0x070) = 0; 
             for(volatile int d=0; d<10000; d++); /* delay */
             *RI_INIT(0x070) = 1; /* ACKNOWLEDGE */
@@ -552,12 +623,16 @@ int virtio_input_init(void) {
             *RI_INIT(0x024) = 0; /* DRIVER_FEATURES_SEL = 0 */
             *RI_INIT(0x020) = 0; /* DRIVER_FEATURES = 0 (we don't use any yet) */
 
+#ifdef DEBUG
             uart_puts("[virtio] input: features OK check...\n");
+#endif
             if (version >= 2) {
                 *RI_INIT(0x070) |= 8; /* FEATURES_OK */
                 for(volatile int d=0; d<10000; d++); /* delay */
                 if (!(*RI_INIT(0x070) & 8)) {
+#ifdef DEBUG
                     uart_puts("[virtio] input FEATURES_OK failed\n");
+#endif
                     continue;
                 }
             }
@@ -569,7 +644,9 @@ int virtio_input_init(void) {
             *RI_INIT(0x030) = 0;
             uint32_t qmax = *RI_INIT(0x034);
             if (qmax == 0) {
+#ifdef DEBUG
                 uart_puts("[virtio] input device has no queue 0\n");
+#endif
                 continue;
             }
             dev->qsize = qmax < 32 ? qmax : 32;
@@ -580,15 +657,21 @@ int virtio_input_init(void) {
             static uint8_t input_queues_static[MAX_INPUT_DEVICES][8192] __attribute__((aligned(4096)));
             
             dev->qmem = input_queues_static[num_input_devs];
+#ifdef DEBUG
             uart_puts("[virtio] input: memset start\n");
+#endif
             memset(dev->qmem, 0, 8192);
+#ifdef DEBUG
             uart_puts("[virtio] input: memset done\n");
+#endif
             
             uintptr_t phys = (uintptr_t)dev->qmem;
+#ifdef DEBUG
             uart_puts("[virtio] input queue at: ");
             uart_put_hex((uint32_t)(phys >> 32));
             uart_put_hex((uint32_t)phys);
             uart_puts("\n");
+#endif
 
             if (version >= 2) {
                 *RI_INIT(0x080) = (uint32_t)phys;
@@ -637,11 +720,15 @@ int virtio_input_init(void) {
             __asm__ volatile("dmb sy" ::: "memory");
             uint8_t *check_dt = dev->qmem;
             uint32_t check_len = *(volatile uint32_t *)(check_dt + 8);
+#ifdef DEBUG
             uart_puts("[virtio] debug: desc[0].len = "); uart_put_hex(check_len); uart_puts("\n");
+#endif
 
             *RI_INIT(0x050) = 0; /* notify */
             
+#ifdef DEBUG
             uart_puts("[virtio] input setting DRIVER_OK...\n");
+#endif
             
             /* Defensive: ACK any pending interrupts before enabling driver */
             volatile uint32_t irq_status = *RI_INIT(0x060);
@@ -665,6 +752,7 @@ int virtio_input_init(void) {
     // uart_puts("[virtio] input init done, devs="); uart_put_hex(num_input_devs); uart_puts("\n");
     return (num_input_devs > 0) ? 0 : -1;
 }
+#endif
 
 #define VIRTIO_BLK_T_IN           0
 #define VIRTIO_BLK_T_OUT          1
@@ -682,13 +770,15 @@ struct virtio_blk_status {
 static uintptr_t blk_mmio_base = 0;
 static uint8_t *blk_qmem = NULL;
 
+#ifndef REAL
 int virtio_blk_init(void) {
     uart_puts("[virtio] searching for virtio-blk...\n");
     for (int i = 0; i < 32; i++) {
         uintptr_t base = 0x0A000000UL + i * 0x200;
         volatile uint32_t *r = (volatile uint32_t *)base;
         if (r[0] != 0x74726976u) continue;
-        if (r[2] == 2u) { // dev_id 2 = block
+        uint32_t dev_id = r[2];
+        if (dev_id == 2u) { // dev_id 2 = block
             blk_mmio_base = base;
             uart_puts("[virtio] found virtio-blk at 0x"); uart_put_hex(base); uart_puts("\n");
             
@@ -724,7 +814,9 @@ int virtio_blk_init(void) {
             }
             
             *RB(0x070) |= 4; // DRIVER_OK
+#ifdef DEBUG
             uart_puts("[virtio] virtio-blk initialized.\n");
+#endif
             return 0;
             #undef RB
         }
@@ -809,16 +901,20 @@ int virtio_blk_rw(uint64_t sector, void *buf, int write) {
     }
     
     /* Invalidate status to see device write */
-    virtio_dcache_invalidate(status, sizeof(*status));
+    virtio_invalidate_dcache(status, sizeof(*status));
     __asm__ volatile("dsb sy" ::: "memory");
 
     if (!write) {
-        /* Invalidate input buffer */
-        virtio_flush_dcache(buf, 512);
+        /* Invalidate input buffer to see device data */
+        virtio_invalidate_dcache(buf, 512);
         __asm__ volatile("dsb sy" ::: "memory");
     }
     
-    return (status->status == 0) ? 0 : -1;
+    if (status->status != 0) {
+        uart_puts("[virtio-blk] ERROR status="); uart_put_hex(status->status); uart_puts("\n");
+        return -1;
+    }
+    return 0;
 }
 
 void virtio_input_handle_dev(struct virtio_input_state *dev) {
@@ -856,7 +952,7 @@ void virtio_input_handle_dev(struct virtio_input_state *dev) {
         struct virtio_input_event *ev = &dev->ev_buf[desc_idx];
         
         /* Invalidate event buffer so we see device data */
-        virtio_dcache_invalidate(ev, sizeof(*ev));
+        virtio_invalidate_dcache(ev, sizeof(*ev));
         
         /* DIAGNOSTIC PRINTS - Enable to see what QEMU sends */
         if (ev->type != 0) { // Skip EV_SYN to reduce noise
@@ -916,7 +1012,6 @@ void virtio_input_irq_handler(void *arg) {
         virtio_input_handle_dev(dev);
     }
 }
-
 
 int virtio_gpu_get_width(void) { return gpu_w; }
 int virtio_gpu_get_height(void) { return gpu_h; }

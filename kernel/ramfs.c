@@ -3,8 +3,6 @@
 #include <string.h>
 #include <stdint.h>
 
-#define RAMFS_NAME_MAX 64
-
 struct ram_node {
     char name[RAMFS_NAME_MAX];
     size_t size;
@@ -129,6 +127,7 @@ int ramfs_list(const char *dir, char *buf, size_t len) {
     // collect unique immediate children
     for (struct ram_node *n = root; n; n = n->next) {
         const char *nm = n->name;
+        // uart_puts("  checking node: "); uart_puts(nm); uart_puts("\n");
         if (strncmp(nm, prefix, strlen(prefix)) != 0) continue;
         // skip the directory itself
         const char *rest = nm + strlen(prefix);
@@ -177,6 +176,7 @@ int ramfs_is_dir(const char *name) {
     if (l + 1 >= RAMFS_NAME_MAX) return 0;
     strcpy(buf, name);
     if (buf[l-1] != '/') { buf[l] = '/'; buf[l+1] = '\0'; }
+    if (strcmp(buf, "/") == 0) return 1;
     for (struct ram_node *n = root; n; n = n->next) {
         if (strncmp(n->name, buf, strlen(buf)) == 0) return 1;
     }

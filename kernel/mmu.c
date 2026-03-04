@@ -70,6 +70,12 @@ int mmu_map_table(uint64_t *pgd, uintptr_t va, uintptr_t pa, size_t size, uint64
 }
 
 void mmu_map(uintptr_t va, uintptr_t pa, size_t size, uint64_t flags) {
+#ifdef DEBUG
+    uart_puts("  mmu_map: va="); uart_put_hex(va);
+    uart_puts(" pa="); uart_put_hex(pa);
+    uart_puts(" sz="); uart_put_hex(size);
+    uart_puts("\n");
+#endif
     mmu_map_table(kernel_l0, va, pa, size, flags);
 }
 
@@ -141,10 +147,12 @@ void mmu_init(void) {
      */
     
 #ifdef REAL
+    /* Pi Zero 2 W has 512MB RAM (0x20000000) */
     // RAM (Kernel, BSS, Stack, Framebuffer)
-    mmu_map(0, 0, 0x3F000000, PTE_AF | PTE_SH_INNER | PTE_MEMATTR_NORMAL);
+    // Removed SH_INNER for now to be safe against interconnect issues
+    mmu_map(0, 0, 0x20000000, PTE_AF | PTE_MEMATTR_NORMAL);
 
-    // Peripherals (UART, Mailbox, EMMC, etc.)
+    // Peripherals (UART, Mailbox, EMMC, etc.) - BCM2837 base
     mmu_map(0x3F000000, 0x3F000000, 0x01000000, PTE_AF | PTE_MEMATTR_DEVICE);
 
     // ARM Local Peripherals (Timers, IRQ routing)
@@ -157,7 +165,9 @@ void mmu_init(void) {
     mmu_map(0x40000000, 0x40000000, 0x20000000, PTE_AF | PTE_SH_INNER | PTE_MEMATTR_NORMAL);
 #endif
 
+#ifdef DEBUG
     uart_puts("[mmu] Page tables set up. Invalidating BSS...\n");
+#endif
     
     uintptr_t bss_start_addr = (uintptr_t)__bss_start;
     uintptr_t bss_end_addr = (uintptr_t)__bss_end;
@@ -167,7 +177,9 @@ void mmu_init(void) {
     }
     __asm__ volatile("dmb sy" ::: "memory");
     
+#ifdef DEBUG
     uart_puts("[mmu] Enabling MMU...\n");
+#endif
 
     /* Invalidate TLBs */
     __asm__ volatile("tlbi vmalle1is");
@@ -195,9 +207,10 @@ void mmu_init(void) {
     sctlr |= (1ULL << 12); /* I bit (Instruction cache enable) */
     sctlr |= (1ULL << 2);  /* C bit (Data cache enable) */
     
-    __asm__ volatile("dsb sy");
     __asm__ volatile("msr sctlr_el1, %0" : : "r" (sctlr));
     __asm__ volatile("isb");
 
+#ifdef DEBUG
     uart_puts("[mmu] MMU enabled.\n");
+#endif
 }

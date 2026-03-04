@@ -1,148 +1,177 @@
 #include "kernel.h"
 #include "uart.h"
-#include "kmalloc.h"
-#include "palloc.h"
-#include "sched.h"
-#include "syscall.h"
-#include "ramfs.h"
-#include "timer.h"
-#include "irq.h"
+#include "rpi_fx.h"
 #include "framebuffer.h"
-#include "virtio.h"
-#include "service.h"
+#include "palloc.h"
+#include "kmalloc.h"
 #include "mmu.h"
-#include "diskfs.h"
+#include "irq.h"
+#include "timer.h"
+#include "virtio.h"
+#include "sched.h"
+#include "ramfs.h"
+#include "init.h"
+#include "syscall.h"
+#include <stdint.h>
 
-/* Linker symbols */
-extern char stack_top[];
 
-/* forward declaration of init task in init.c */
-extern void init_main(void *arg);
+int screen_w = 1024, screen_h = 768; // to be externed to sched.c
 
-void kernel_main(void) {
-    /* 1. Initialize memory subsystems FIRST (needed by MMU for page tables) */
-    uart_puts("[kernel] initializing memory subsystems...\n");
-#ifdef REAL
-    uintptr_t ram_end   = 0x3E000000; /* Leave some at top for GPU if needed */
-    uintptr_t heap_base = 0x10000000; /* Start heap at 256MB */
-#else
-    uintptr_t ram_end   = 0x60000000;
-    uintptr_t heap_base = 0x43000000; 
+void heartbeat_task(void *arg);
+
+void heartbeat_task(void *arg) {
+    (void)arg;
+#ifdef DEBUG
+    uart_puts("[heartbeat] task started\n");
 #endif
-    size_t heap_pages = (ram_end - heap_base) / PAGE_SIZE;
-
-    palloc_init((void *)heap_base, heap_pages);
-    kmalloc_init();
-
-    /* 2. Enable MMU for consistent caching */
-    uart_puts("[kernel] enabling MMU...\n");
-    mmu_init();
-    
-    uart_puts("[kernel] initializing ramfs...\n");
-    ramfs_init();
-    
-    uart_puts("[kernel] initializing diskfs...\n");
-    diskfs_init();
-    
-    uart_puts("[kernel] initializing services...\n");
-    services_init();
-    
-    uart_puts("[kernel] probing graphics...\n");
-
-    /* Try to initialize virtio-gpu (preferred). If that fails, fall back
-       to the fixed RAMFB address (for QEMU variants that expose it). */
-    if (virtio_gpu_init() == 0) {
-        if (!fb_is_init()) {
-            int w = virtio_gpu_get_width();
-            int h = virtio_gpu_get_height();
-            uart_puts("[kernel] virtio-gpu initialized (");
-            uart_put_hex(w); uart_puts("x"); uart_put_hex(h); uart_puts(")\n");
-            fb_init((void *)0x42000000, w, h, w*4);
-        } else {
-            uart_puts("[kernel] hardware GPU initialized via driver\n");
-        }
-    } else {
-        uart_puts("[kernel] virtio-gpu not available; falling back to RAMFB at 0x42000000\n");
-        /* Quick probe... */
-        if (!fb_is_init()) {
-            volatile uint32_t *probe = (volatile uint32_t *)0x42000000;
-            unsigned int sum = 0;
-            for (int i = 0; i < 1024; ++i) {
-                probe[i] = (uint32_t)(0xA5A50000 | (unsigned int)i);
-            }
-            for (int i = 0; i < 1024; ++i) sum += (unsigned int)probe[i];
-
-            /* format hex into small buffer */
-            char buf[11]; /* 0x + 8 hex + \0 */
-            unsigned int v = sum;
-            buf[0] = '0'; buf[1] = 'x';
-            for (int i = 0; i < 8; ++i) {
-                int shift = (7 - i) * 4;
-                unsigned int nib = (v >> shift) & 0xF;
-                buf[2 + i] = (nib < 10) ? ('0' + nib) : ('A' + (nib - 10));
-            }
-            buf[10] = '\0';
-            uart_puts("[kernel] ramfb probe checksum= "); uart_puts(buf); uart_puts("\n");
-
-            fb_init((void *)0x42000000, 800, 600, 800*4);
-        }
-    }
-
-    if (fb_is_init()) {
-        fb_fill(0x000000);
-        fb_put_text_centered("HELLO FROM MYRAS", 0xFFFFFFFF);
-    }
-
-    /* scheduler */
-    /* timers must be initialized before scheduling/preemption features */
-    timer_init();
-    irq_init();
-    scheduler_init();
-
-    /* syscalls */
-    syscall_init();
-    syscall_register_defaults();
-
-    /* create init task which will run a shell - needs large stack for bootup (virtio, services, etc.) */
-    task_create_with_stack(init_main, NULL, "init", 64);
-    
-    /* TEST: User Space Task - Verification Complete (Disabled to prevent log spam/lag) */
-    extern void user_test_entry(void);
-    // task_create_user("user_test", user_test_entry);
-
-    uart_puts("[kernel] enabling interrupts2...\n");
-    __asm__ volatile("msr daifclr, #2");
-
-    /* run scheduler loop cooperatively */
     while (1) {
-        schedule();
+#ifdef REAL
+        rpi_gpio16_on();
+#endif
+        task_block_current_until(scheduler_get_tick() + 500);
+        task_block_current_until(scheduler_get_tick() + 500);
+#ifdef REAL
+        rpi_gpio16_off();
+#endif
+        task_block_current_until(scheduler_get_tick() + 500);
     }
 }
 
-void __attribute__((naked)) user_test_entry(void) {
-    asm volatile(
-        /* Construct string "H User!\n" on stack */
-        "sub sp, sp, #16\n"
-        "movz x0, #0x2048\n"
-        "movk x0, #0x7355, lsl #16\n" 
-        "movk x0, #0x7265, lsl #32\n" 
-        "movk x0, #0x0A21, lsl #48\n" 
-        "str x0, [sp]\n"
-        "str xzr, [sp, #8]\n"         
+extern char __end[];
+
+void kernel_main(void) {
+    /* 1. Initialize hardware basics */
+    uart_init();     
+#ifdef DEBUG
+    uart_puts("\n[kernel] UART START\n");
+    uart_puts("[kernel] alive\n");
+#endif
+
+#ifdef REAL
+    rpi_init();
+    if (rpi_gpu_init() == 0) {
+        fb_fill(0xFF0000FF); // Start with RED
+        fb_put_text_centered("MYRAS OS BOOTING (RPI)...", 0xFFFFFFFF);
+        rpi_gpu_flush();
+    }
+#else
+    virtio_init();      
+    if (virtio_gpu_init() == 0) {
+        fb_fill(0xFF0000FF); // Start with RED
+        fb_put_text_centered("MYRAS OS BOOTING (VIRTIO)...", 0xFFFFFFFF);
+        virtio_gpu_flush();
+    }
+#endif
+    else {
+#ifdef DEBUG
+        uart_puts("[kernel] GPU Init Failed!\n");
+#endif
+    }
+
+    /* 3. Kernel Subsystems */
+#ifdef DEBUG
+    uart_puts("[kernel] palloc_init... ");
+#endif
+    uintptr_t pool_start;
+    size_t pool_pages;
+#ifdef REAL
+    pool_start = ((uintptr_t)__end + 4095) & ~4095ULL;
+    /* Pi Zero 2 W has 512MB RAM. Upper bound safe at 400MB to leave room for BSS/Stack/GPU */
+    pool_pages = (0x19000000 - pool_start) / 4096;
+#else
+    pool_start = ((uintptr_t)__end + 4095) & ~4095ULL;
+    /* QEMU virt has RAM from 0x40000000 to up to 0x60000000 depending on -m */
+    pool_pages = (0x60000000 - pool_start) / 4096;
+#endif
+    palloc_init((void*)pool_start, pool_pages);
+    fb_fill(0xFFFF0000); // Progress: BLUE
+    fb_put_text_centered("PALLOC DONE", 0xFFFFFFFF);
+    virtio_gpu_flush();
+#ifdef DEBUG
+    uart_puts("done.\n");
+    
+    uart_puts("[kernel] kmalloc_init... ");
+#endif
+    kmalloc_init();
+    fb_fill(0xFF00FF00); // Progress: GREEN
+    fb_put_text_centered("KMALLOC DONE", 0xFFFFFFFF);
+    virtio_gpu_flush();
+    uart_puts("done.\n");
+    
+    uart_puts("[kernel] mmu_init... ");
+    mmu_init();
+    // If we survive this, we change color again
+    fb_fill(0xFFFFFF00); // Progress: YELLOW
+    fb_put_text_centered("MMU ENABLED (IDENTITY)", 0xFF000000);
+    virtio_gpu_flush();
+#ifdef DEBUG
+    uart_puts("done.\n");
+    
+    uart_puts("[kernel] irq_init... ");
+#endif
+    irq_init();
+#ifdef DEBUG
+    uart_puts("done.\n");
+#endif
+    
+    uart_puts("[kernel] timer_init... ");
+    timer_init();
+    fb_fill(0xFFFF00FF); // Progress: MAGENTA
+    fb_put_text_centered("TIMER ENABLED", 0xFFFFFFFF);
+    virtio_gpu_flush();
+#ifdef DEBUG
+    uart_puts("done.\n");
+    
+    uart_puts("[kernel] scheduler_init... ");
+#endif
+    scheduler_init();
+#ifdef DEBUG
+    uart_puts("done.\n");
+#endif
+
+    /* Initialize Syscalls */
+#ifdef DEBUG
+    uart_puts("[kernel] syscall_init... ");
+#endif
+    syscall_init();
+    syscall_register_defaults();
+#ifdef DEBUG
+    uart_puts("done.\n");
+#endif
+
+    /* 4. Services and Tasks */
+    ramfs_init();
+    task_create(heartbeat_task, NULL, "heartbeat");
+    task_create(init_main, NULL, "init");
+
+    fb_fill(0x00000000); // BLACK - Launching system
+    
+    fb_get_res(&screen_w, &screen_h);
+    
+    fb_put_text_centered("LAUNCHING MULTITASKING...", 0xFFFFFFFF);
+    virtio_gpu_flush();
+#ifdef DEBUG
+    uart_puts("[kernel] entering scheduler loop...\n");
+#endif
+    
+    fb_fill(0xFF00FF00); // GREEN
+    fb_put_text_centered("LAUNCHING MULTITASKING...", 0xFF000000);
+    virtio_gpu_flush();
+    
+    int loop_cnt = 0;
+    while (1) {
+        schedule();
         
-        "1:\n"
-        "mov x0, sp\n"      
-        "mov x8, #1\n"    
-        "svc #0\n"
-        
-        /* Yield */
-        "mov x8, #2\n"
-        "svc #0\n"
-        
-        /* Loop delay */
-        "mov x1, #0x200000\n"
-        "2: subs x1, x1, #1\n"
-        "b.ne 2b\n"
-        "b 1b\n"
-    );
+        // Visual heartbeat every ~10000 loops
+        if (++loop_cnt > 100000) {
+            static int toggle = 0;
+            int h_x = screen_w/2 - 10;
+            int h_y = screen_h/2 - 10;
+            // Draw a small square in center
+            fb_draw_rect(h_x, h_y, 20, 20, toggle ? 0xFFFFFFFF : 0xFF000000);
+            virtio_gpu_flush_rect(h_x, h_y, 20, 20); // Optimized flush
+            toggle = !toggle;
+            loop_cnt = 0;
+        }
+    }
 }

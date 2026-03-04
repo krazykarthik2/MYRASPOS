@@ -21,13 +21,17 @@ struct km_header {
 static struct km_header *free_list = NULL;
 
 void kmalloc_init(void) {
+#ifdef DEBUG
     uart_puts("[kmalloc] Coalescing allocator active\n");
+#endif
 }
 
 static void km_expand_small(void) {
     void *page = palloc_alloc();
     if (!page) {
+#ifdef DEBUG
         uart_puts("[kmalloc] expand_small failed: palloc_alloc returned NULL\n");
+#endif
         return;
     }
     
@@ -94,7 +98,9 @@ void *kmalloc(size_t size) {
     }
     
     if (limit <= 0) {
+#ifdef DEBUG
         uart_puts("[kmalloc] FATAL: Free list cycle detected!\n");
+#endif
         irq_restore(flags);
         return NULL;
     }
@@ -126,7 +132,9 @@ void *kmalloc(size_t size) {
         cur = cur->next;
     }
     
+#ifdef DEBUG
     uart_puts("[kmalloc] failed to allocate "); uart_put_hex((uint32_t)size); uart_puts(" bytes\n");
+#endif
     irq_restore(flags);
     return NULL;
 }
@@ -152,7 +160,9 @@ void kfree(void *ptr) {
     }
     
     if (cur == h) {
+#ifdef DEBUG
         uart_puts("[kmalloc] WARNING: Double-free detected at "); uart_put_hex((uint32_t)(uintptr_t)ptr); uart_puts("\n");
+#endif
         irq_restore(flags);
         return;
     }

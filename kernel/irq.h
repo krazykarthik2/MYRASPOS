@@ -36,6 +36,14 @@ static inline unsigned long irq_save(void) {
     return flags;
 }
 
+static inline void irq_enable(void) {
+    __asm__ volatile("msr daifclr, #2" ::: "memory");
+}
+
+static inline void irq_disable(void) {
+    __asm__ volatile("msr daifset, #2" ::: "memory");
+}
+
 static inline void irq_restore(unsigned long flags) {
     __asm__ volatile(
         "msr daif, %0"

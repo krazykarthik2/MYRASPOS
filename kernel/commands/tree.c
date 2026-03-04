@@ -4,11 +4,14 @@
 #include "kmalloc.h"
 #include "glob.h"
 #include <stddef.h>
+#include "uart.h"
 
 static int tree_walk(const char *dir, int depth, char *out, size_t out_cap, size_t *off) {
     if (*off >= out_cap) return 0;
+    uart_puts("[tree] walking: "); uart_puts(dir);
     char listbuf[1024];
     int r = init_ramfs_list(dir, listbuf, sizeof(listbuf));
+    uart_puts(" -> "); uart_putu(r >= 0 ? r : 0); uart_puts(" bytes\n");
     if (r < 0) return r;
     size_t p = 0;
     while (p < (size_t)r) {

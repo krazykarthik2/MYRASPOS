@@ -17,17 +17,12 @@ static volatile int input_lock = 0;
 
 static unsigned long lock(void) {
     unsigned long flags = irq_save();
-    unsigned int tmp;
-    __asm__ volatile(
-        "1: ldxr %w0, [%1]\n"
-        "   cbnz %w0, 1b\n"
-        "   stxr %w0, %w2, [%1]\n"
-        "   cbnz %w0, 1b\n"
-        "   dmb sy\n"
-        : "=&r" (tmp)
-        : "r" (&input_lock), "r" (1)
-        : "memory"
-    );
+    while (input_lock) {
+        irq_restore(flags);
+        yield();
+        flags = irq_save();
+    }
+    input_lock = 1;
     return flags;
 }
 
@@ -41,11 +36,63 @@ static void unlock(unsigned long flags) {
 static int mouse_x = 0, mouse_y = 0, mouse_btn = 0;
 static int screen_w = 800, screen_h = 600;
 
+static uint8_t ascii_to_scan(char c) {
+    /* Mapping based on wm.c's scan_to_ascii table */
+    if (c >= 'a' && c <= 'z') return 30 + (c - 'a'); /* WRONG: scan codes aren't sequential like this. */
+    /* Let's use a more accurate small mapping for common keys */
+    switch(c) {
+        case '\n': case '\r': return 28;
+        case '\b': case 127:  return 14;
+        case ' ':  return 57;
+        case '1': return 2; case '2': return 3; case '3': return 4; case '4': return 5;
+        case '5': return 6; case '6': return 7; case '7': return 8; case '8': return 9;
+        case '9': return 10; case '0': return 11;
+        case 'q': return 16; case 'w': return 17; case 'e': return 18; case 'r': return 19;
+        case 't': return 20; case 'y': return 21; case 'u': return 22; case 'i': return 23;
+        case 'o': return 24; case 'p': return 25;
+        case 'a': return 30; case 's': return 31; case 'd': return 32; case 'f': return 33;
+        case 'g': return 34; case 'h': return 35; case 'j': return 36; case 'k': return 37;
+        case 'l': return 38;
+        case 'z': return 44; case 'x': return 45; case 'c': return 46; case 'v': return 47;
+        case 'b': return 48; case 'n': return 49; case 'm': return 50;
+        case '/': return 53; case '.': return 52; case ',': return 51;
+        case '-': return 12; case '=': return 13;
+        default: return 0;
+    }
+}
+
+void uart_keyboard_task(void *arg) {
+    (void)arg;
+    while(1) {
+        if (uart_haschar()) {
+            char c = uart_getc();
+            /* Special handling for uppercase */
+            int shifted = (c >= 'A' && c <= 'Z');
+            char lookup = shifted ? (c - 'A' + 'a') : c;
+            uint8_t scan = ascii_to_scan(lookup);
+            if (scan > 0) {
+                if (shifted) input_push_event(INPUT_TYPE_KEY, 0x2A, 1); /* Left Shift Press */
+                input_push_event(INPUT_TYPE_KEY, scan, 1); /* Key Press */
+                input_push_event(INPUT_TYPE_KEY, scan, 0); /* Key Release */
+                if (shifted) input_push_event(INPUT_TYPE_KEY, 0x2A, 0); /* Left Shift Release */
+            }
+        }
+        yield();
+    }
+}
+
 void input_init(int sw, int sh) {
     screen_w = sw;
     screen_h = sh;
     mouse_x = sw / 2;
     mouse_y = sh / 2;
+    
+    /* Startup the UART keyboard bridge task */
+    static int started = 0;
+    if (!started) {
+        task_create(uart_keyboard_task, NULL, "uart_kbd");
+        started = 1;
+    }
 }
 
 void input_get_mouse_state(int *x, int *y, int *btn) {

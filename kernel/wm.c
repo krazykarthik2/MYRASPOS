@@ -47,17 +47,11 @@ static uint8_t scan_to_ascii_shift[] = {
 static void wm_lock_window(struct window *win) {
     if (!win) return;
     volatile int *l = &win->input_lock;
-    unsigned int tmp;
-    __asm__ volatile(
-        "1: ldxr %w0, [%1]\n"
-        "   cbnz %w0, 1b\n"
-        "   stxr %w0, %w2, [%1]\n"
-        "   cbnz %w0, 1b\n"
-        "   dmb sy\n"
-        : "=&r" (tmp)
-        : "r" (l), "r" (1)
-        : "memory"
-    );
+    /* irq_save is done by caller usually, but if not, single core is safe enough for now. The proper fix is using irq_save in the caller. */
+    while (*l) {
+        yield();
+    }
+    *l = 1;
 }
 
 static void wm_unlock_window(struct window *win) {
@@ -68,22 +62,43 @@ static void wm_unlock_window(struct window *win) {
 
 
 void wm_init(void) {
+#ifdef DEBUG
+    uart_puts("[wm] wm_init start\n");
+#endif
     fb_get_res(&screen_w, &screen_h);
+#ifdef DEBUG
+    uart_puts("[wm] resolution: "); uart_putu(screen_w); uart_puts("x"); uart_putu(screen_h); uart_puts("\n");
+#endif
     input_init(screen_w, screen_h);
+
+    fb_fill(0xFF0000AA); // Dark Blue
+    fb_put_text_centered("WM: LOADING WALLPAPER...", 0xFFFFFFFF);
+#ifdef REAL
+    rpi_gpu_flush();
+#else
+    virtio_gpu_flush();
+#endif
 
     /* Try to load wallpaper */
     if (img_load_png("/system/assets/wallpaper.png", &wallpaper_w, &wallpaper_h, &wallpaper_buf) == 0) {
-        uart_puts("WM: Wallpaper loaded (\n");
-        uart_putu(wallpaper_w);
-        uart_puts("x");
-        uart_putu(wallpaper_h);
-        uart_puts(")\n");
+        
     } else {
-        uart_puts("WM: Failed to load wallpaper\n");
+        fb_fill(0xFFAA0000); // Dark Red
+        fb_put_text_centered("WM: WALLPAPER FAILED", 0xFFFFFFFF);
+#ifdef REAL
+        rpi_gpu_flush();
+#else
+        virtio_gpu_flush();
+#endif
+        // spin briefly
+        for(volatile int i=0; i<5000000; i++);
     }
 
     desktop_dirty = 1; // Mark desktop dirty on init
     task_wake_event(WM_EVENT_ID); // Trigger initial draw
+#ifdef DEBUG
+    uart_puts("[wm] wm_init done\n");
+#endif
 }
 
 
@@ -92,17 +107,10 @@ static volatile int wm_global_lock = 0;
 
 static void wm_list_lock(void) {
     if (wm_global_lock == 1) return; // simple re-entry guard? No, wait_for_lock
-    unsigned int tmp;
-    __asm__ volatile(
-        "1: ldxr %w0, [%1]\n"
-        "   cbnz %w0, 1b\n"
-        "   stxr %w0, %w2, [%1]\n"
-        "   cbnz %w0, 1b\n"
-        "   dmb sy\n"
-        : "=&r" (tmp)
-        : "r" (&wm_global_lock), "r" (1)
-        : "memory"
-    );
+    while (wm_global_lock) {
+        yield();
+    }
+    wm_global_lock = 1;
 }
 
 static void wm_list_unlock(void) {
@@ -374,24 +382,24 @@ static void wm_handle_clicks(int is_press) {
 
 static void draw_taskbar(void) {
     /* Draw taskbar background */
-    fb_draw_rect(0, screen_h - taskbar_h, screen_w, taskbar_h, 0x111111);
-    fb_draw_hline(0, screen_w - 1, screen_h - taskbar_h, 0x555555);
+    fb_draw_rect(0, screen_h - taskbar_h, screen_w, taskbar_h, 0xFF111111);
+    fb_draw_hline(0, screen_w - 1, screen_h - taskbar_h, 0xFF555555);
     
     /* Draw "Start" button placeholder */
-    fb_draw_rect(5, screen_h - taskbar_h + 5, 60, taskbar_h - 10, 0x00AA00);
-    fb_draw_text(10, screen_h - taskbar_h + 8, "VALLI", 0xFFFFFF, 2);
+    fb_draw_rect(5, screen_h - taskbar_h + 5, 60, taskbar_h - 10, 0xFF00AA00);
+    fb_draw_text(10, screen_h - taskbar_h + 8, "VALLI", 0xFFFFFFFF, 2);
 
     /* Draw window entries - CRITICAL: Use locking to prevent race with window creation/deletion */
     int x = 75;
     wm_list_lock();
     struct window *w = window_list;
     while (w) {
-        uint32_t color = (w->state == WM_STATE_MINIMIZED) ? 0x333333 : 0x5555FF;
+        uint32_t color = (w->state == WM_STATE_MINIMIZED) ? 0xFF333333 : 0xFF5555FF;
         fb_draw_rect(x, screen_h - taskbar_h + 5, 80, taskbar_h - 10, color);
         
         char shortname[9];
         strncpy(shortname, w->name, 8); shortname[8] = '\0';
-        fb_draw_text(x + 5, screen_h - taskbar_h + 10, shortname, 0xFFFFFF, 1);
+        fb_draw_text(x + 5, screen_h - taskbar_h + 10, shortname, 0xFFFFFFFF, 1);
         
         x += 85;
         w = w->next;
@@ -438,6 +446,7 @@ void wm_set_state(struct window *win, wm_state_t state) {
 
 void wm_compose(void) {
     if (!fb_is_init()) return;
+    // uart_puts("[wm] wm_compose start\n");
 
     /* 1. ALWAYS pop all mouse events to keep the queue healthy and detect clicks.
      * Note: coordinate updates are now handled in the input driver. */
@@ -523,7 +532,7 @@ void wm_compose(void) {
             fb_draw_bitmap_scaled(0, 0, screen_w, screen_h, wallpaper_buf, wallpaper_w, wallpaper_h, 0, 0, screen_w, screen_h);
         } else {
             /* Fallback: Steel Blue */
-            fb_draw_rect(0, 0, screen_w, screen_h, 0x4682B4);
+            fb_draw_rect(0, 0, screen_w, screen_h, 0xFF4682B4);
         }
 
     /* Draw windows back to front */
@@ -540,24 +549,24 @@ void wm_compose(void) {
     for (int i = count - 1; i >= 0; i--) {
         struct window *w = stack[i];
         if (w->state != WM_STATE_MINIMIZED) {
-            uint32_t border_color = (w == focused_window) ? 0xFFFF00 : 0x444488;
+            uint32_t border_color = (w == focused_window) ? 0xFFFFFF00 : 0xFF444488;
             fb_draw_rect_outline(w->x, w->y, w->w, w->h, border_color, 2);
             if (w->state != WM_STATE_FULLSCREEN) {
-                uint32_t title_color = (w == focused_window) ? 0x00AA00 : 0x2222BB;
+                uint32_t title_color = (w == focused_window) ? 0xFF00AA00 : 0xFF2222BB;
                 fb_draw_rect(w->x + 2, w->y + 2, w->w - 4, 20, title_color);
-                fb_draw_text(w->x + 8, w->y + 4, w->name, 0xFFFFFF, 2);
-                fb_draw_rect(w->x + w->w - 22, w->y + 2, 20, 20, 0xFF0000);
-                fb_draw_text(w->x + w->w - 16, w->y + 4, "X", 0xFFFFFF, 2);
+                fb_draw_text(w->x + 8, w->y + 4, w->name, 0xFFFFFFFF, 2);
+                fb_draw_rect(w->x + w->w - 22, w->y + 2, 20, 20, 0xFFFF0000);
+                fb_draw_text(w->x + w->w - 16, w->y + 4, "X", 0xFFFFFFFF, 2);
                 /* Maximize ([]) */
-                fb_draw_rect(w->x + w->w - 42, w->y + 2, 20, 20, 0x00AA00);
-                fb_draw_rect_outline(w->x + w->w - 38, w->y + 6, 12, 12, 0xFFFFFF, 1);
+                fb_draw_rect(w->x + w->w - 42, w->y + 2, 20, 20, 0xFF00AA00);
+                fb_draw_rect_outline(w->x + w->w - 38, w->y + 6, 12, 12, 0xFFFFFFFF, 1);
                 /* Minimize (_) */
-                fb_draw_rect(w->x + w->w - 62, w->y + 2, 20, 20, 0xAAAA00);
-                fb_draw_hline(w->x + w->w - 58, w->x + w->w - 46, w->y + 16, 0xFFFFFF);
+                fb_draw_rect(w->x + w->w - 62, w->y + 2, 20, 20, 0xFFAAAA00);
+                fb_draw_hline(w->x + w->w - 58, w->x + w->w - 46, w->y + 16, 0xFFFFFFFF);
             }
             int content_y = (w->state == WM_STATE_FULLSCREEN) ? w->y + 2 : w->y + 22;
             int content_h = (w->state == WM_STATE_FULLSCREEN) ? w->h - 4 : w->h - 24;
-            fb_draw_rect(w->x + 2, content_y, w->w - 4, content_h, 0x000000);
+            fb_draw_rect(w->x + 2, content_y, w->w - 4, content_h, 0xFF000000);
             if (w->render) w->render(w);
         }
     }
@@ -569,19 +578,35 @@ void wm_compose(void) {
     draw_cursor_overlay(mx, my);
     wm_last_mx = mx; wm_last_my = my;
     
+#ifdef REAL
+    rpi_gpu_flush();
+#else
     virtio_gpu_flush();
+#endif
 } else if (mouse_moved) {
     /* Only mouse moved - optimized sprite update */
     restore_bg();
     save_bg(mx, my);
     draw_cursor_overlay(mx, my);
+    
+    /* Flush old and new cursor regions only */
+#ifdef REAL
+    rpi_gpu_flush_rect(wm_last_mx, wm_last_my, CURSOR_W, CURSOR_H);
+    rpi_gpu_flush_rect(mx, my, CURSOR_W, CURSOR_H);
+#else
+    virtio_gpu_flush_rect(wm_last_mx, wm_last_my, CURSOR_W, CURSOR_H);
+    virtio_gpu_flush_rect(mx, my, CURSOR_W, CURSOR_H);
+#endif
+
     wm_last_mx = mx; wm_last_my = my;
-    virtio_gpu_flush();
 }
 }
 
 static void wm_task(void *arg) {
     (void)arg;
+#ifdef DEBUG
+    uart_puts("[wm] wm_task started\n");
+#endif
     fb_get_res(&screen_w, &screen_h);
     input_init(screen_w, screen_h);
     
@@ -598,5 +623,10 @@ static void wm_task(void *arg) {
 void wm_start_task(void) {
     cursor_init();
     task_create_with_stack(wm_task, NULL, "wm_compositor", 16);
+    task_wake_event(WM_EVENT_ID);
+}
+
+void wm_request_redraw(void) {
+    desktop_dirty = 1;
     task_wake_event(WM_EVENT_ID);
 }

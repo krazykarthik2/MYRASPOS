@@ -1,4 +1,0 @@
-core_freq=250
-enable_uart=1
-dtparam=act_led_trigger=none
-dtparam=act_led_activelow=on

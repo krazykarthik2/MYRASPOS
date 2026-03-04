@@ -1,0 +1,2 @@
+@echo off
+"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK  -c kernel\kernel.c -o temp\objects\kernel.o

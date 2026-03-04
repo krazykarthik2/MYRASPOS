@@ -9,6 +9,11 @@
 #include "timer.h"
 #include "irq.h"
 #include "palloc.h"
+#include "framebuffer.h"
+#include "virtio.h"
+#include "rpi_fx.h" 
+
+extern int screen_w, screen_h;
 
 extern void cpu_switch_to(struct task_context *prev, struct task_context *next);
 extern void ret_from_fork(void);
@@ -160,12 +165,14 @@ int task_create_with_stack(task_fn fn, void *arg, const char *name, size_t stack
     } else {
         /* DEBUG: Validate list BEFORE insertion */
         if (!task_head->next || ((uintptr_t)task_head->next & 7) != 0) {
+#ifdef DEBUG
             uart_puts("[sched] LIST CORRUPT BEFORE insert! head_addr=");
             uart_put_hex((uint32_t)(uintptr_t)task_head);
             uart_puts(" head->next=");
             uart_put_hex((uint32_t)(uintptr_t)task_head->next);
             uart_puts(" head_id="); uart_put_hex(task_head->id);
             uart_puts("\n");
+#endif
             while(1);
         }
         
@@ -179,7 +186,9 @@ int task_create_with_stack(task_fn fn, void *arg, const char *name, size_t stack
         int count = 0;
         do {
             if (!v || ((uintptr_t)v & 7) != 0 || count > 100) {
+#ifdef DEBUG
                 uart_puts("[sched] LIST CORRUPT after insert!\n");
+#endif
                 while(1);
             }
             count++;
@@ -188,9 +197,11 @@ int task_create_with_stack(task_fn fn, void *arg, const char *name, size_t stack
     }
     
     if (t->context.x19 == 0) {
+#ifdef DEBUG
         uart_puts("[sched] FATAL: x19 is 0 in task_create! fn=");
         uart_put_hex((uint32_t)(uintptr_t)fn);
         uart_puts("\n");
+#endif
         while(1);
     }
 
@@ -385,27 +396,42 @@ static void reap_zombies(void) {
 }
 
 void schedule(void) {
-    /* FIRST: Reap any zombie tasks from previous exits. Safe because we're now
+    /* FIRST: Reap any zombie tasks from previous exits. safe because we're now
      * running on OS/boot stack or a different task's stack. */
+    // Text debug output at bottom left of screen (y=600+)
+#ifdef DEBUG
+    #define DBG_TEXT(y, msg, col) do { DEBUG_PRINT(msg); uart_puts("\n"); } while(0)
+#else
+    #define DBG_TEXT(y, msg, col) do { } while(0)
+#endif
+    DBG_TEXT(600, "Schedule: Entered...", 0xFFFFFFFF);
+    
     reap_zombies();
+    
+    DBG_TEXT(620, "Schedule: Reaped.", 0xFFFFFFFF);
     
     /* update timer and dispatch polled IRQs */
     timer_poll_and_advance();
-    irq_poll_and_dispatch();
+    // irq_poll_and_dispatch(); // MIGHT HANG IF VIRTIO STUCK
+    
+    DBG_TEXT(640, "Schedule: Polled.", 0xFFFFFFFF);
 
     /* DEBUG: Check if task_head got corrupted to boot_task */
     if (task_head == &boot_task) {
-        uart_puts("[sched] CRITICAL: task_head is boot_task! Resetting to NULL\n");
+        // uart_puts("[sched] CRITICAL: task_head is boot_task! Resetting to NULL\n");
         task_head = NULL;
     }
-
+    
     // Debug: Dump task list frequently
     static int dump_tick = 0;
     if (dump_tick++ % 50 == 0) {
         // uart_puts("\n[sched] scan: "); ... (Disabled)
     }
 
-    if (!task_head) return;
+    if (!task_head) {
+        DBG_TEXT(660, "Schedule: No Tasks. Return.", 0xFFAAAAAA);
+        return;
+    }
 
     struct task *prev = task_cur;
     struct task *next;
@@ -418,6 +444,8 @@ void schedule(void) {
         prev = &boot_task;
         task_cur = &boot_task;
     }
+
+    DBG_TEXT(660, "Schedule: Safety Done. Scanning...", 0xFFFFFFFF);
 
     /* If we are currently the boot task, start with head */
     if (prev == &boot_task) {
@@ -434,22 +462,44 @@ void schedule(void) {
 
     /* Count runnable tasks in one pass if possible, or just find the next one */
     struct task *v = task_head;
+    int safety_counter = 0;
     do {
         if (v->fn != NULL) {
             runnable_count++;
             last_runnable = v;
         }
         v = v->next;
+        safety_counter++;
+        if (safety_counter > 100) {
+             DBG_TEXT(680, "ERROR: Task Loop > 100! List Broken?", 0xFFFF0000);
+             break; 
+        }
     } while (v != task_head);
 
+    if (safety_counter <= 100) {
+         DBG_TEXT(680, "Schedule: Loop Done.", 0xFFFFFFFF);
+    }
+
     if (runnable_count == 0) {
+        DBG_TEXT(700, "Return: Runnable 0", 0xFFAAAAAA);
         irq_restore(sched_flags);
         return;
     }
     
+    // DEBUG: Print runnable count
+    if (runnable_count > 1) {
+         DBG_TEXT(720, "Runnable > 1. Selecting...", 0xFFFFFFFF);
+    } else {
+         DBG_TEXT(720, "Runnable == 1. Checking...", 0xFFFFFFFF);
+    }
+
     /* Optimization: B. Scheduler optimizations - Avoid context switch when only one runnable task */
     if (runnable_count == 1) {
-        if (prev == last_runnable) return;
+        if (prev == last_runnable) {
+             DBG_TEXT(700, "Return: Count 1 (Same Task)", 0xFFFFFFFF);
+             irq_restore(sched_flags);
+             return;
+        }
         next = last_runnable;
     } else {
         while (next && (next->fn == NULL) && attempts < 1000) {
@@ -459,144 +509,70 @@ void schedule(void) {
         }
     }
 
-    if (!next || next->fn == NULL) return;
+    if (!next || next->fn == NULL) {
+         DBG_TEXT(700, "Return: No Next Found", 0xFFAAAAAA);
+         irq_restore(sched_flags);
+         return;
+    }
 
     /* Don't switch if target is same as current */
-    if (next == prev) return;
+    if (next == prev) {
+         DBG_TEXT(700, "Return: Next == Prev", 0xFFFFFFFF);
+         irq_restore(sched_flags);
+         return;
+    }
 
     /* Perform Switch */
     if (next->magic != 0xDEADC0DE) {
-        uart_puts("[sched] CRITICAL: task magic corrupted for "); uart_puts(next->name);
-        uart_puts(" magic="); uart_put_hex(next->magic);
-        uart_puts(" addr="); uart_put_hex((uint32_t)(uintptr_t)next);
-        uart_puts("\n");
-        panic("Task corruption detected");
+        DBG_TEXT(740, "PANIC: Task Magic Corrupt!", 0xFFFF0000);
+        while(1);
     }
     task_cur = next;
     
-    /*
-    if (next->id == 7 && next->run_count == 1) {
-        uart_puts("[sched] STARTING FILES EXPLORER TASK\n");
-    }
-    */
-
     prev->is_running = 0;
     next->is_running = 1;
-    
-    /* account run for next task */
     next->run_count++;
     total_run_counts++;
 
-    if (next->context.x19 == 0 && next->id != 0) { // x19 might be 0 for boot task? No, boot task has running state.
-         // Actually boot task context is undefined/garbage until we switch away from it. 
-         // But for a NEW task, x19 must be fn.
-         if (next->run_count == 1) { // First run
-             uart_puts("[sched] PRE-SWITCH CHECK FAIL: x19 is 0 for new task!\n");
-             uart_puts(" addr="); uart_put_hex((uint32_t)(uintptr_t)next);
-             uart_puts("\n");
-             while(1);
-         }
-    }
-    
-    // Check x30 (LR)
-    if (next->context.x30 == 0 && next->id != 0 && next->run_count == 1) {
-         uart_puts("[sched] PRE-SWITCH CHECK FAIL: x30 is 0 for new task!\n");
+    if (next->context.x19 == 0 && next->id != 0 && next->run_count == 1) {
+         DBG_TEXT(740, "PANIC: x19 is 0!", 0xFFFF0000);
          while(1);
     }
     
-    /* Debug context before switch (SILENT for performance) */
-    /*
-    uart_puts("[sched] switching. next="); uart_puts(next->name);
-    uart_puts(" id="); uart_put_hex(next->id);
-    uart_puts(" x30="); uart_put_hex((uint32_t)next->context.x30);
-    uart_puts(" sp="); uart_put_hex((uint32_t)next->context.sp);
-    uart_puts("\n");
-    */
-
-    if (next->context.x30 == 0) {
-        uart_puts("[sched] ERROR: x30 is 0!\n");
-        while(1);
+    if (next->context.x30 == 0 && next->id != 0 && next->run_count == 1) {
+         DBG_TEXT(740, "PANIC: x30 is 0!", 0xFFFF0000);
+         while(1);
     }
-    
-    /* Detect if x30 was corrupted with a task ID pattern */
-    uint64_t lr = next->context.x30;
-    /* Valid kernel code is in range 0x40800000 - 0x41000000 */
-    if (lr < 0x40800000ULL || lr > 0x41000000ULL) {
-        uart_puts("[sched] ERROR: x30 out of kernel range! x30=");
-        uart_put_hex((uint32_t)(lr >> 32));
-        uart_put_hex((uint32_t)lr);
-        uart_puts(" task="); uart_puts(next->name);
-        uart_puts(" id="); uart_put_hex(next->id);
-        uart_puts("\n");
-        while(1);
-    }
-    
-    /* Additional validation for critical addresses (SILENT for performance) */
-    /*
-    if (next->id == 1) { 
-        uart_puts("[sched] SWITCHING TO INIT - validating context\n");
-        uart_puts("  x30="); uart_put_hex((uint32_t)next->context.x30);
-        uart_puts(" sp="); uart_put_hex((uint32_t)next->context.sp);
-        uart_puts(" x19="); uart_put_hex((uint32_t)next->context.x19);
-        uart_puts("\n");
-    }
-    */
     
     /* CRITICAL: Validate stack integrity before switch */
     if (next->stack) {
-        #define STACK_GUARD_SIZE 4096
         size_t total_alloc = next->stack_total_bytes;
-        
-        /* Check guard page for underflow */
         uint32_t *guard = (uint32_t *)next->stack;
-        int guard_corrupted = 0;
-        int corrupt_offset = 0;
-        for (int i = 0; i < STACK_GUARD_SIZE / 4; i++) {
-            if (guard[i] != 0xDEADDEAD) {
-                guard_corrupted = 1;
-                corrupt_offset = i * 4;
-                break;
-            }
-        }
-        
-        if (guard_corrupted) {
-            uart_puts("[sched] STACK UNDERFLOW! Task="); uart_puts(next->name);
-            uart_puts(" guard corrupted at offset="); uart_put_hex(corrupt_offset);
-            uart_puts("\n");
+        if (guard[0] != 0xDEADDEAD) {
+            DBG_TEXT(740, "PANIC: Stack Underflow!", 0xFFFF0000);
             while(1);
         }
         
-        /* Check canary for overflow (at the bottom of usable stack) */
         uint64_t *canary_addr = (uint64_t *)((uint64_t)next->stack + STACK_GUARD_SIZE);
-        uint64_t canary = *canary_addr;
-        if (canary != 0xDEADBEEFCAFEBABE) {
-            uart_puts("[sched] STACK OVERFLOW! (Canary Corrupted) Task="); uart_puts(next->name);
-            uart_puts(" canary="); uart_put_hex((uint32_t)(canary >> 32));
-            uart_put_hex((uint32_t)canary);
-            uart_puts("\n");
-            while(1);
-        }
-        
-        /* Check if current SP is within valid range */
-        uint64_t stack_bottom = (uint64_t)next->stack + STACK_GUARD_SIZE;
-        uint64_t stack_top = (uint64_t)next->stack + total_alloc;
-        if (next->context.sp < stack_bottom || next->context.sp > stack_top) {
-            uart_puts("[sched] SP OUT OF BOUNDS! Task="); uart_puts(next->name);
-            uart_puts(" sp="); uart_put_hex((uint32_t)next->context.sp);
-            uart_puts(" valid_range="); uart_put_hex((uint32_t)stack_bottom);
-            uart_puts("-"); uart_put_hex((uint32_t)stack_top);
-            uart_puts("\n");
+        if (*canary_addr != 0xDEADBEEFCAFEBABE) {
+            DBG_TEXT(740, "PANIC: Stack Overflow (Canary)!", 0xFFFF0000);
             while(1);
         }
     }
 
-    /* Mask IRQs to ensure atomic switch (crucial for stack safety) */
-    // IRQs already disabled via sched_flags
+    // DEBUG: About to context switch
+    DBG_TEXT(740, "Switching To Task...", 0xFF00FF00); // GREEN
+    #ifdef DEBUG
+    DEBUG_PRINT("Next Task: ");
+    uart_puts(next->name);
+    uart_puts("\n");
+    #endif
     
+    
+
     /* Switch MMU if needed */
-    /* Checks handled inside mmu_switch (null check falls back to kernel_l0) */
     mmu_switch(next->pgd);
-    
+
     cpu_switch_to(&prev->context, &next->context);
     
     /* Restore IRQs after returning from context switch */
@@ -604,6 +580,8 @@ void schedule(void) {
 }
 
 void yield(void) {
+    extern struct task *task_cur;
+    if (!task_cur) return;
     schedule();
 }
 
@@ -626,8 +604,10 @@ static void kill_children_of(int parent_id) {
     /* Marking children as zombies is fast and safe because no memory is freed yet */
     do {
         if (t->parent_id == parent_id && t->id != parent_id && !t->zombie) {
+#ifdef DEBUG
             uart_puts("[sched] Reaping child id="); uart_put_hex(t->id); 
             uart_puts(" ("); uart_puts(t->name); uart_puts(") due to parent exit\n");
+#endif
             t->zombie = 1;
             t->fn = NULL;
             /* Recurse to kill grandchildren */
@@ -811,9 +791,11 @@ void scheduler_tick_advance(uint32_t delta_ms) {
     do {
         /* Safety check: ensure t is a valid pointer (8-byte aligned at least) */
         if (((uintptr_t)t & 7) != 0) {
+#ifdef DEBUG
             uart_puts("[sched] PANIC: Corrupted task list in tick! t=");
             uart_put_hex((uint32_t)(uintptr_t)t);
             uart_puts("\n");
+#endif
             while(1);
         }
 

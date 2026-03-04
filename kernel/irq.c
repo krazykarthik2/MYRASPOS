@@ -102,7 +102,11 @@ void irq_poll_and_dispatch(void) {
     if (uart_haschar()) {
         irq_dispatch(1);
     }
+#ifdef REAL
+    rpi_input_poll();
+#else
     virtio_input_poll();
+#endif
 }
 
 /* Called from assembly IRQ entry. */

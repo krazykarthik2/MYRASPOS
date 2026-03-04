@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#define RAMFS_NAME_MAX 64
+
 int ramfs_init(void);
 int ramfs_create(const char *name);
 int ramfs_write(const char *name, const void *buf, size_t len, size_t offset);

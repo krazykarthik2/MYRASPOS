@@ -141,7 +141,18 @@ void fb_fill(uint32_t color) {
         int n = fb_w;
         while (n--) *p++ = color;
     }
-    virtio_gpu_flush();
+}
+
+/* ASM friendly wrapper that doesn't rely on complex context */
+void fb_fill_asm(uint32_t color) {
+    fb_fill(color);
+    /* Manually flush if needed, but virtio might need complex stack. skip flush for now? */
+    /* If we are hanging, we can't call complex C. But fb_fill is simple. */
+    /* Virtio flush is complex. We might not see this update if flush is required. */
+    /* But on RPi real hardware, we use mailbox FB which is direct RAM. No flush needed! */
+    /* Wait, checking rpi_gpu logic. */
+    extern void rpi_gpu_flush(void);
+    rpi_gpu_flush();
 }
 
 void fb_set_pixel(int x, int y, uint32_t color) {
@@ -280,7 +291,7 @@ void fb_put_text_centered(const char *s, uint32_t color) {
     if (!fb) return;
     /* compute text pixel width using scale */
     int len = 0; while (s[len]) len++;
-    int glyph_w = 5; int glyph_h = 7; int scale = 8; int spacing = scale; /* pixels between glyphs */
+    int glyph_w = 5; int glyph_h = 7; int scale = 4; int spacing = scale; /* pixels between glyphs */
     int total_w = len * (glyph_w * scale) + (len - 1) * spacing;
     int start_x = (fb_w - total_w) / 2;
     int start_y = (fb_h - (glyph_h * scale)) / 2;
@@ -290,7 +301,6 @@ void fb_put_text_centered(const char *s, uint32_t color) {
         fb_draw_scaled_glyph(g, x, start_y, scale, color);
         x += glyph_w * scale + spacing;
     }
-    virtio_gpu_flush();
 }
 
 /* simple terminal at top-left using same 5x7 glyphs scaled small */
@@ -298,6 +308,25 @@ static int term_x = 0, term_y = 0;
 static const int term_scale = 2;
 static const int term_cols = 70; /* 70 chars * 11px = 770px < 800px */
 static const int term_rows = 35; /* 35 lines * 15px = 525px < 600px */
+
+void fb_put_text(const char *s, int x, int y, uint32_t color) {
+    if (!fb || !s) return;
+    int scale = 2; // Default scale for debug logs
+    int glyph_w = 5; 
+    int spacing = 2;
+    
+    while (*s) {
+        char c = *s++;
+        if (c == '\n') {
+             y += 7 * scale + spacing;
+             // x reset? No, simple single line for now or handled by caller
+             continue;
+        }
+        const uint8_t *g = get_glyph(c);
+        fb_draw_scaled_glyph(g, x, y, scale, color);
+        x += (glyph_w * scale) + spacing;
+    }
+}
 
 void fb_puts(const char *s) {
     if (!fb) return;
@@ -327,7 +356,6 @@ void fb_puts(const char *s) {
         if (term_x >= term_cols) { term_x = 0; term_y++; }
         if (term_y >= term_rows) { fb_fill(0x000000); term_y = 0; }
     }
-    virtio_gpu_flush();
 }
 
 void fb_draw_bitmap_scaled(int x, int y, int w, int h, const uint32_t *bitmap, int bw, int bh, int cx, int cy, int cw, int ch) {
@@ -357,9 +385,7 @@ void fb_draw_bitmap_scaled(int x, int y, int w, int h, const uint32_t *bitmap, i
         
         /* Map screen_y back to source y */
         /* relative y in dst rect */
-        int rel_y = screen_y - x; 
-        /* Wait, screen_y - y is correct relative y */
-        rel_y = screen_y - y;
+        int rel_y = screen_y - y;
         
         int src_y = (rel_y * bh) / h;
         if (src_y < 0) src_y = 0;
