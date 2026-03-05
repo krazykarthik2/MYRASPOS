@@ -412,7 +412,11 @@ void schedule(void) {
     
     /* update timer and dispatch polled IRQs */
     timer_poll_and_advance();
-    // irq_poll_and_dispatch(); // MIGHT HANG IF VIRTIO STUCK
+    
+    // Explicitly poll input without waiting for IRQ to maximize responsiveness in VM
+#ifndef REAL
+    virtio_input_poll();
+#endif
     
     DBG_TEXT(640, "Schedule: Polled.", 0xFFFFFFFF);
 
@@ -763,7 +767,6 @@ void task_wake_event(void *event_id) {
                             t->saved_fn = NULL;
                             t->block_type = BLOCK_NONE;
                         }
-                        break;
                     }
                     t = t->next;
                 } while (t != task_head);

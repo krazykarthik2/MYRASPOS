@@ -96,8 +96,6 @@ static void iv_draw(struct window *win) {
 
     if (st->img_buf) {
         /* Calculate Dest Rect to fit image in window maintaining aspect ratio */
-        int win_w = win->w; 
-        int win_h = win->h;
         /* Content area adjustments are handled by wm_draw_bitmap if we passed simpler coords? 
            No, win->w is full window width. wm_draw_bitmap handles Chrome offsets. 
            We just need to fit into (win->w - 4) x (win->h - 24/4).

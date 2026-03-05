@@ -28,6 +28,7 @@ static int wm_last_mx = -1, wm_last_my = -1;
 
 static int shift_state = 0;
 static int caps_lock = 0;
+static int num_lock = 1;
 
 static uint8_t scan_to_ascii[] = {
     0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
@@ -484,6 +485,16 @@ void wm_compose(void) {
                         shift_state = kev.value;
                     } else if (kev.code == 0x3A && kev.value == 1) { // CapsLock press
                         caps_lock = !caps_lock;
+                        #ifdef REAL
+                        extern void usb_set_leds(uint8_t leds);
+                        usb_set_leds((num_lock ? 1 : 0) | (caps_lock ? 2 : 0));
+                        #endif
+                    } else if (kev.code == 0x45 && kev.value == 1) { // NumLock press
+                        num_lock = !num_lock;
+                        #ifdef REAL
+                        extern void usb_set_leds(uint8_t leds);
+                        usb_set_leds((num_lock ? 1 : 0) | (caps_lock ? 2 : 0));
+                        #endif
                     } else if (kev.value >= 1) {
                         if (kev.code < sizeof(scan_to_ascii)) {
                             char base = scan_to_ascii[kev.code];
@@ -589,13 +600,13 @@ void wm_compose(void) {
     save_bg(mx, my);
     draw_cursor_overlay(mx, my);
     
-    /* Flush old and new cursor regions only */
 #ifdef REAL
+    /* Real hardware: flush only the cursor regions for speed */
     rpi_gpu_flush_rect(wm_last_mx, wm_last_my, CURSOR_W, CURSOR_H);
     rpi_gpu_flush_rect(mx, my, CURSOR_W, CURSOR_H);
 #else
-    virtio_gpu_flush_rect(wm_last_mx, wm_last_my, CURSOR_W, CURSOR_H);
-    virtio_gpu_flush_rect(mx, my, CURSOR_W, CURSOR_H);
+    /* VM: full flush is more reliable and actually faster (1 cmd vs 2) */
+    virtio_gpu_flush();
 #endif
 
     wm_last_mx = mx; wm_last_my = my;
@@ -615,8 +626,19 @@ static void wm_task(void *arg) {
     wm_compose();
     
     while (1) {
+#ifndef REAL
+        /* VM OPTIMIZATION: Poll-based compositing. On a virtual machine,
+           event-driven compositing is too slow because the cooperative
+           round-robin scheduler must cycle through ALL tasks before the
+           WM gets a chance to run after being woken. Polling with yield()
+           ensures we check for mouse movement on every scheduler cycle. */
+        virtio_input_poll();
+        wm_compose();
+        yield();
+#else
         task_wait_event(WM_EVENT_ID);
         wm_compose();
+#endif
     }
 }
 

@@ -54,6 +54,8 @@ void kernel_main(void) {
         fb_put_text_centered("MYRAS OS BOOTING (RPI)...", 0xFFFFFFFF);
         rpi_gpu_flush();
     }
+    extern int usb_init(void);
+    usb_init();
 #else
     virtio_init();      
     if (virtio_gpu_init() == 0) {

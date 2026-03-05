@@ -1,0 +1,24 @@
+temp\objects\start.o
+temp\objects\mmu.o temp\objects\diskfs.o temp\objects\vectors.o
+temp\objects\swtch.o temp\objects\kernel.o temp\objects\uart.o
+temp\objects\palloc.o temp\objects\kmalloc.o temp\objects\ramfs.o
+temp\objects\lib.o temp\objects\syscall.o temp\objects\timer.o
+temp\objects\irq.o temp\objects\framebuffer.o temp\objects\virtio.o
+temp\objects\rpi_fx.o temp\objects\usb.o temp\objects\init.o
+temp\objects\programs.o temp\objects\echo.o temp\objects\help.o
+temp\objects\touch.o temp\objects\write.o temp\objects\cat.o
+temp\objects\ls.o temp\objects\rm.o temp\objects\mkdir.o
+temp\objects\rmdir.o temp\objects\cp.o temp\objects\mv.o
+temp\objects\grep.o temp\objects\head.o temp\objects\tail.o
+temp\objects\more.o temp\objects\tree.o temp\objects\shell.o
+temp\objects\sched.o temp\objects\panic.o temp\objects\service.o
+temp\objects\glob.o temp\objects\pty.o temp\objects\input.o
+temp\objects\wm.o temp\objects\terminal_app.o temp\objects\myra_app.o
+temp\objects\calculator_app.o temp\objects\files_app.o
+temp\objects\cursor.o temp\objects\keyboard_tester_app.o
+temp\objects\editor_app.o temp\objects\edit.o temp\objects\files.o
+temp\objects\image.o temp\objects\image_viewer.o temp\objects\lodepng.o
+temp\objects\lodepng_glue.o temp\objects\view.o temp\objects\clear.o
+temp\objects\ps.o temp\objects\sleep.o temp\objects\wait.o
+temp\objects\kill.o temp\objects\ramfs_tools.o temp\objects\systemctl.o
+temp\objects\free.o

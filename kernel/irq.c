@@ -104,6 +104,8 @@ void irq_poll_and_dispatch(void) {
     }
 #ifdef REAL
     rpi_input_poll();
+    extern void usb_poll(void);
+    usb_poll();
 #else
     virtio_input_poll();
 #endif

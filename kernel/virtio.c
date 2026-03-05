@@ -229,7 +229,7 @@ static int virtio_gpu_send_command_nolock(void *req, size_t req_len, void *resp,
         __asm__ volatile("dc ivac, %0" : : "r" (used) : "memory");
         __asm__ volatile("dsb sy" ::: "memory");
         if (used[1] != idx) break;
-        __asm__ volatile("nop");
+        // for (volatile int d = 0; d < 10; d++); /* delay to prevent dc ivac spam */
     }
     
     if (timeout <= 0) {
@@ -968,6 +968,18 @@ void virtio_input_handle_dev(struct virtio_input_state *dev) {
             input_push_event(INPUT_TYPE_ABS, ev->code, (int32_t)ev->value);
         } else if (ev->type == VIRTIO_INPUT_EV_REL) {
             input_push_event(INPUT_TYPE_REL, ev->code, (int32_t)ev->value);
+        } else if (ev->type == VIRTIO_INPUT_EV_SYN) {
+            /* VIRTUAL MACHINE OPTIMIZATION:
+               Directly wake the window manager compositor to ensure the screen
+               updates immediately after QEMU finishes sending a batch of mouse events,
+               bypassing any input queue capacity constraints. */
+
+            // try to remove it after  I optimize the irq and all and add some priorities in the scheduler and all
+            // PS remove after I make everything fast enough
+            uart_puts("[virtio] waking up wm");
+            extern void task_wake_event(void *event_id);
+            #define WM_EVENT_ID ((void*)0x100)
+            task_wake_event(WM_EVENT_ID);
         }
         
         /* Put descriptor back on avail ring */

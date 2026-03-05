@@ -24,13 +24,13 @@
 #define MBOX_FULL   0x80000000
 #define MBOX_CH_PROP 8
 
-static volatile unsigned int __attribute__((aligned(16))) mbox[36];
+volatile unsigned int __attribute__((aligned(16))) mbox[36];
 
 void delay(unsigned int count) {
     while(count--) { asm volatile("nop"); }
 }
 
-static int mbox_call(unsigned char ch, volatile unsigned int *buffer) {
+int mbox_call(unsigned char ch, volatile unsigned int *buffer) {
     unsigned int r = ((unsigned int)((unsigned long)buffer) & ~0xF) | (ch & 0xF);
     while (MBOX_STATUS & MBOX_FULL);
     MBOX_WRITE = r;

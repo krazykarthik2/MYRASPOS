@@ -28,6 +28,9 @@ void rpi_gpio16_off(void);
 void delay(unsigned int count);
 
 
+extern volatile unsigned int mbox[36];
+int mbox_call(unsigned char ch, volatile unsigned int *buffer);
+
 #ifdef REAL
 #define virtio_init rpi_init
 #define virtio_gpu_init rpi_gpu_init
