@@ -1,0 +1,495 @@
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call build.bat " 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>set REAL_FLAG= 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>set DEBUG_FLAG= 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>set LINKER_SCRIPT=linkers\linker.ld 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>set REAL_FLAG= 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>set DEBUG_FLAG= 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>set LINKER_SCRIPT=linkers\linker.ld 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>if "" == "" goto endloop 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>echo Building with REAL_FLAG= 
+Building with REAL_FLAG=
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>echo Building with DEBUG_FLAG= 
+Building with DEBUG_FLAG=
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>echo Using LINKER_SCRIPT=linkers\linker.ld 
+Using LINKER_SCRIPT=linkers\linker.ld
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>if /I "" == "-DREAL" (
+ 
+ echo Skipping disk.img for real hardware build... 
+)  else (
+ 
+ echo Creating disk.img...  
+ taskkill /F /IM qemu-system-aarch64.exe /T  2>nul  
+ python make_disk.py  
+ if 0 NEQ 0 (
+echo. 
+ echo *************** ERROR ***************  
+ echo  Failed to create disk.img!  
+ echo  Make sure QEMU is closed.  
+ echo *************************************  
+ exit /b 0 
+) 
+) 
+Creating disk.img...
+Scanning directory: assets
+Found 2 files/folders.
+  Adding: /system/assets/calculator.png
+  Adding: /system/assets/wallpaper.png
+Created disk.img (16777216 bytes) with 2 files.
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>del /F /Q temp\objects\*.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>del /F /Q temp\elfs\*.elf 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>del /F /Q temp\binaries\*.img 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>del /F /Q temp\maps\*.map 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>set GCC=aarch64\aarch64-none-elf-gcc.bat 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>set C_FLAGS=-ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c boot\start.S -o temp\objects\start.o  
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c boot\start.S -o temp\objects\start.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\vectors.S -o temp\objects\vectors.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\vectors.S -o temp\objects\vectors.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\swtch.S -o temp\objects\swtch.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\swtch.S -o temp\objects\swtch.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\kernel.c -o temp\objects\kernel.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\kernel.c -o temp\objects\kernel.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\uart.c -o temp\objects\uart.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\uart.c -o temp\objects\uart.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\palloc.c -o temp\objects\palloc.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\palloc.c -o temp\objects\palloc.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\kmalloc.c -o temp\objects\kmalloc.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\kmalloc.c -o temp\objects\kmalloc.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\ramfs.c -o temp\objects\ramfs.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\ramfs.c -o temp\objects\ramfs.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\lib.c -o temp\objects\lib.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\lib.c -o temp\objects\lib.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\syscall.c -o temp\objects\syscall.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\syscall.c -o temp\objects\syscall.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\timer.c -o temp\objects\timer.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\timer.c -o temp\objects\timer.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\irq.c -o temp\objects\irq.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\irq.c -o temp\objects\irq.o 
+kernel\irq.c:60:6: warning: no previous prototype for 'irq_unmask' [-Wmissing-prototypes]
+   60 | void irq_unmask(int irq_num) {
+      |      ^~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\framebuffer.c -o temp\objects\framebuffer.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\framebuffer.c -o temp\objects\framebuffer.o 
+kernel\framebuffer.c:147:6: warning: no previous prototype for 'fb_fill_asm' [-Wmissing-prototypes]
+  147 | void fb_fill_asm(uint32_t color) {
+      |      ^~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\virtio.c -o temp\objects\virtio.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\virtio.c -o temp\objects\virtio.o 
+kernel\virtio.c: In function 'virtio_gpu_init':
+kernel\virtio.c:312:18: warning: unused variable 'version' [-Wunused-variable]
+  312 |         uint32_t version = r[1]; // offset 0x04
+      |                  ^~~~~~~
+kernel\virtio.c: In function 'virtio_gpu_flush_rect':
+kernel\virtio.c:548:15: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+  548 |     if (x + w > gpu_w) w = gpu_w - x;
+      |               ^
+kernel\virtio.c:549:15: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+  549 |     if (y + h > gpu_h) h = gpu_h - y;
+      |               ^
+kernel\virtio.c: In function 'virtio_input_init':
+kernel\virtio.c:722:22: warning: unused variable 'check_len' [-Wunused-variable]
+  722 |             uint32_t check_len = *(volatile uint32_t *)(check_dt + 8);
+      |                      ^~~~~~~~~
+kernel\virtio.c: At top level:
+kernel\virtio.c:920:6: warning: no previous prototype for 'virtio_input_handle_dev' [-Wmissing-prototypes]
+  920 | void virtio_input_handle_dev(struct virtio_input_state *dev) {
+      |      ^~~~~~~~~~~~~~~~~~~~~~~
+kernel\virtio.c:1016:6: warning: no previous prototype for 'virtio_input_irq_handler' [-Wmissing-prototypes]
+ 1016 | void virtio_input_irq_handler(void *arg) {
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\rpi_fx.c -o temp\objects\rpi_fx.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\rpi_fx.c -o temp\objects\rpi_fx.o 
+kernel\rpi_fx.c:34:10: warning: no previous prototype for 'mailbox_clock_rate' [-Wmissing-prototypes]
+   34 | uint32_t mailbox_clock_rate(uint32_t clock_id) {
+      |          ^~~~~~~~~~~~~~~~~~
+kernel\rpi_fx.c:59:6: warning: no previous prototype for 'set_uart_clock' [-Wmissing-prototypes]
+   59 | void set_uart_clock(void) {
+      |      ^~~~~~~~~~~~~~
+kernel\rpi_fx.c:72:6: warning: no previous prototype for 'gpio_init_uart' [-Wmissing-prototypes]
+   72 | void gpio_init_uart(void) {
+      |      ^~~~~~~~~~~~~~
+kernel\rpi_fx.c:84:6: warning: no previous prototype for 'gpio_init_led' [-Wmissing-prototypes]
+   84 | void gpio_init_led(void) {
+      |      ^~~~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\dma.c -o temp\objects\dma.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\dma.c -o temp\objects\dma.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\emmc.c -o temp\objects\emmc.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\emmc.c -o temp\objects\emmc.o 
+kernel\emmc.c: In function 'emmc_issue_command':
+kernel\emmc.c:72:27: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+   72 |         for (int b = 0; b < sd_device.transfer_blocks; b++) {
+      |                           ^
+kernel\emmc.c:75:31: warning: comparison of integer expressions of different signedness: 'int' and 'uint32_t' {aka 'unsigned int'} [-Wsign-compare]
+   75 |             for (int i = 0; i < sd_device.block_size / 4; i++) {
+      |                               ^
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\emmc_clock.c -o temp\objects\emmc_clock.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\emmc_clock.c -o temp\objects\emmc_clock.o 
+kernel\emmc_clock.c:34:6: warning: no previous prototype for 'emmc_setup_clock' [-Wmissing-prototypes]
+   34 | bool emmc_setup_clock() {
+      |      ^~~~~~~~~~~~~~~~
+kernel\emmc_clock.c:47:6: warning: no previous prototype for 'switch_clock_rate' [-Wmissing-prototypes]
+   47 | bool switch_clock_rate(uint32_t base_clock, uint32_t target_rate) {
+      |      ^~~~~~~~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\usb.c -o temp\objects\usb.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\usb.c -o temp\objects\usb.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\mmu.c -o temp\objects\mmu.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\mmu.c -o temp\objects\mmu.o 
+kernel\mmu.c:41:5: warning: no previous prototype for 'mmu_map_table' [-Wmissing-prototypes]
+   41 | int mmu_map_table(uint64_t *pgd, uintptr_t va, uintptr_t pa, size_t size, uint64_t flags) {
+      |     ^~~~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\diskfs.c -o temp\objects\diskfs.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\diskfs.c -o temp\objects\diskfs.o 
+kernel\diskfs.c:251:6: warning: no previous prototype for 'diskfs_sync_to_ramfs' [-Wmissing-prototypes]
+  251 | void diskfs_sync_to_ramfs(void) {
+      |      ^~~~~~~~~~~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\init.c -o temp\objects\init.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\init.c -o temp\objects\init.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\programs.c -o temp\objects\programs.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\programs.c -o temp\objects\programs.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\echo.c -o temp\objects\echo.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\echo.c -o temp\objects\echo.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\help.c -o temp\objects\help.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\help.c -o temp\objects\help.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\touch.c -o temp\objects\touch.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\touch.c -o temp\objects\touch.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\write.c -o temp\objects\write.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\write.c -o temp\objects\write.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\cat.c -o temp\objects\cat.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\cat.c -o temp\objects\cat.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\ls.c -o temp\objects\ls.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\ls.c -o temp\objects\ls.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\rm.c -o temp\objects\rm.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\rm.c -o temp\objects\rm.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\mkdir.c -o temp\objects\mkdir.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\mkdir.c -o temp\objects\mkdir.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\rmdir.c -o temp\objects\rmdir.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\rmdir.c -o temp\objects\rmdir.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\cp.c -o temp\objects\cp.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\cp.c -o temp\objects\cp.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\mv.c -o temp\objects\mv.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\mv.c -o temp\objects\mv.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\grep.c -o temp\objects\grep.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\grep.c -o temp\objects\grep.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\head.c -o temp\objects\head.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\head.c -o temp\objects\head.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\tail.c -o temp\objects\tail.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\tail.c -o temp\objects\tail.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\more.c -o temp\objects\more.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\more.c -o temp\objects\more.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\tree.c -o temp\objects\tree.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\tree.c -o temp\objects\tree.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\shell.c -o temp\objects\shell.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\shell.c -o temp\objects\shell.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\sched.c -o temp\objects\sched.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\sched.c -o temp\objects\sched.o 
+kernel\sched.c: In function 'task_create_user':
+kernel\sched.c:296:15: warning: unused variable 'code_va_aligned' [-Wunused-variable]
+  296 |     uintptr_t code_va_aligned = code_pa & ~0xFFF;
+      |               ^~~~~~~~~~~~~~~
+kernel\sched.c: In function 'schedule':
+kernel\sched.c:552:16: warning: unused variable 'total_alloc' [-Wunused-variable]
+  552 |         size_t total_alloc = next->stack_total_bytes;
+      |                ^~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\panic.c -o temp\objects\panic.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\panic.c -o temp\objects\panic.o 
+kernel\panic.c: In function 'print_hex':
+kernel\panic.c:10:10: warning: variable 'buf' set but not used [-Wunused-but-set-variable]
+   10 |     char buf[2 + sizeof(uintptr_t) * 2 + 1];
+      |          ^~~
+kernel\panic.c: In function 'panic_with_trace':
+kernel\panic.c:22:35: warning: unused parameter 'msg' [-Wunused-parameter]
+   22 | void panic_with_trace(const char *msg) {
+      |                       ~~~~~~~~~~~~^~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\service.c -o temp\objects\service.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\service.c -o temp\objects\service.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\glob.c -o temp\objects\glob.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\glob.c -o temp\objects\glob.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\pty.c -o temp\objects\pty.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\pty.c -o temp\objects\pty.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\input.c -o temp\objects\input.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\input.c -o temp\objects\input.o 
+kernel\input.c:64:6: warning: no previous prototype for 'uart_keyboard_task' [-Wmissing-prototypes]
+   64 | void uart_keyboard_task(void *arg) {
+      |      ^~~~~~~~~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\wm.c -o temp\objects\wm.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\wm.c -o temp\objects\wm.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\terminal_app.c -o temp\objects\terminal_app.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\terminal_app.c -o temp\objects\terminal_app.o 
+kernel\apps\terminal_app.c: In function 'term_update_task':
+kernel\apps\terminal_app.c:75:9: warning: unused variable 'input_buf_idx' [-Wunused-variable]
+   75 |     int input_buf_idx = 0;
+      |         ^~~~~~~~~~~~~
+kernel\apps\terminal_app.c:74:10: warning: unused variable 'input_buf' [-Wunused-variable]
+   74 |     char input_buf[128];
+      |          ^~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\myra_app.c -o temp\objects\myra_app.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\myra_app.c -o temp\objects\myra_app.o 
+kernel\apps\myra_app.c:299:13: warning: 'editor_app_start_null' defined but not used [-Wunused-function]
+  299 | static void editor_app_start_null(void) {
+      |             ^~~~~~~~~~~~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\calculator_app.c -o temp\objects\calculator_app.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\calculator_app.c -o temp\objects\calculator_app.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\files_app.c -o temp\objects\files_app.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\files_app.c -o temp\objects\files_app.o 
+kernel\apps\files_app.c:238:13: warning: 'do_paste' defined but not used [-Wunused-function]
+  238 | static void do_paste(void) {
+      |             ^~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\cursor.c -o temp\objects\cursor.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\cursor.c -o temp\objects\cursor.o 
+kernel\cursor.c:54:6: warning: no previous prototype for 'cursor_task' [-Wmissing-prototypes]
+   54 | void cursor_task(void *arg) {
+      |      ^~~~~~~~~~~
+kernel\cursor.c: In function 'cursor_task':
+kernel\cursor.c:60:9: warning: unused variable 'my' [-Wunused-variable]
+   60 |     int my = screen_h / 2;
+      |         ^~
+kernel\cursor.c:59:9: warning: unused variable 'mx' [-Wunused-variable]
+   59 |     int mx = screen_w / 2;
+      |         ^~
+kernel\cursor.c: At top level:
+kernel\cursor.c:76:6: warning: no previous prototype for 'mouse_sim_task' [-Wmissing-prototypes]
+   76 | void mouse_sim_task(void *arg) {
+      |      ^~~~~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\keyboard_tester_app.c -o temp\objects\keyboard_tester_app.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\keyboard_tester_app.c -o temp\objects\keyboard_tester_app.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\editor_app.c -o temp\objects\editor_app.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\editor_app.c -o temp\objects\editor_app.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\edit.c -o temp\objects\edit.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\edit.c -o temp\objects\edit.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\files.c -o temp\objects\files.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\files.c -o temp\objects\files.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\lodepng.c -o temp\objects\lodepng.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\lodepng.c -o temp\objects\lodepng.o 
+kernel\lodepng.c:3942:10: warning: no previous prototype for 'lodepng_convert_rgb' [-Wmissing-prototypes]
+ 3942 | unsigned lodepng_convert_rgb(
+      |          ^~~~~~~~~~~~~~~~~~~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\lodepng_glue.c -o temp\objects\lodepng_glue.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\lodepng_glue.c -o temp\objects\lodepng_glue.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\image.c -o temp\objects\image.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\image.c -o temp\objects\image.o 
+kernel\image.c: In function 'img_display_png':
+kernel\image.c:70:33: warning: comparison of unsigned expression in '>= 0' is always true [-Wtype-limits]
+   70 |             if ((unsigned)dst_x >= (unsigned)0 && (unsigned)dst_x < (unsigned)0x7fffffff &&
+      |                                 ^~
+kernel\image.c:71:33: warning: comparison of unsigned expression in '>= 0' is always true [-Wtype-limits]
+   71 |                 (unsigned)dst_y >= (unsigned)0 && (unsigned)dst_y < (unsigned)0x7fffffff) {
+      |                                 ^~
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\image_viewer.c -o temp\objects\image_viewer.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\apps\image_viewer.c -o temp\objects\image_viewer.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\debug_overlay.c -o temp\objects\debug_overlay.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\debug_overlay.c -o temp\objects\debug_overlay.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\view.c -o temp\objects\view.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\view.c -o temp\objects\view.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\clear.c -o temp\objects\clear.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\clear.c -o temp\objects\clear.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\ps.c -o temp\objects\ps.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\ps.c -o temp\objects\ps.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\sleep.c -o temp\objects\sleep.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\sleep.c -o temp\objects\sleep.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\wait.c -o temp\objects\wait.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\wait.c -o temp\objects\wait.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\kill.c -o temp\objects\kill.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\kill.c -o temp\objects\kill.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\ramfs_tools.c -o temp\objects\ramfs_tools.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\ramfs_tools.c -o temp\objects\ramfs_tools.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\systemctl.c -o temp\objects\systemctl.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\systemctl.c -o temp\objects\systemctl.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call aarch64\aarch64-none-elf-gcc.bat -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\free.c -o temp\objects\free.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-gcc.exe" -ffixed-x18 -fno-builtin -fno-merge-constants -fno-common -mgeneral-regs-only -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a53 -march=armv8-a -mabi=lp64 -Wall -Wextra -Wmissing-prototypes -Ikernel -DLODEPNG_NO_COMPILE_ALLOCATORS -DLODEPNG_NO_COMPILE_DISK   -c kernel\commands\free.c -o temp\objects\free.o 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>if /I "" == "--real" (
+echo Linking for REAL hardware...  
+ call "aarch64\aarch64-none-elf-ld.bat" temp\objects\start.o temp\objects\mmu.o temp\objects\diskfs.o temp\objects\vectors.o temp\objects\swtch.o temp\objects\kernel.o temp\objects\uart.o temp\objects\palloc.o temp\objects\kmalloc.o temp\objects\ramfs.o temp\objects\lib.o temp\objects\syscall.o temp\objects\timer.o temp\objects\irq.o temp\objects\framebuffer.o temp\objects\virtio.o temp\objects\rpi_fx.o temp\objects\dma.o temp\objects\emmc.o temp\objects\emmc_clock.o temp\objects\usb.o temp\objects\init.o temp\objects\programs.o temp\objects\echo.o temp\objects\help.o temp\objects\touch.o temp\objects\write.o temp\objects\cat.o temp\objects\ls.o temp\objects\rm.o temp\objects\mkdir.o temp\objects\rmdir.o temp\objects\cp.o temp\objects\mv.o temp\objects\grep.o temp\objects\head.o temp\objects\tail.o temp\objects\more.o temp\objects\tree.o temp\objects\shell.o temp\objects\sched.o temp\objects\panic.o temp\objects\service.o temp\objects\glob.o temp\objects\pty.o temp\objects\input.o temp\objects\wm.o temp\objects\terminal_app.o temp\objects\myra_app.o temp\objects\calculator_app.o temp\objects\files_app.o temp\objects\cursor.o temp\objects\keyboard_tester_app.o temp\objects\editor_app.o temp\objects\edit.o temp\objects\files.o temp\objects\image.o temp\objects\image_viewer.o temp\objects\lodepng.o temp\objects\lodepng_glue.o temp\objects\view.o temp\objects\clear.o temp\objects\ps.o temp\objects\sleep.o temp\objects\wait.o temp\objects\kill.o temp\objects\ramfs_tools.o temp\objects\systemctl.o temp\objects\free.o temp\objects\debug_overlay.o -T linkers\linker.ld -o temp\elfs\kernel.elf -Map temp\maps\kernel.map 
+)  else (
+echo Linking for SIMULATION...  
+ call "aarch64\aarch64-none-elf-ld.bat" temp\objects\start.o temp\objects\mmu.o temp\objects\diskfs.o temp\objects\vectors.o temp\objects\swtch.o temp\objects\kernel.o temp\objects\uart.o temp\objects\palloc.o temp\objects\kmalloc.o temp\objects\ramfs.o temp\objects\lib.o temp\objects\syscall.o temp\objects\timer.o temp\objects\irq.o temp\objects\framebuffer.o temp\objects\virtio.o temp\objects\rpi_fx.o temp\objects\dma.o temp\objects\emmc.o temp\objects\emmc_clock.o temp\objects\usb.o temp\objects\init.o temp\objects\programs.o temp\objects\echo.o temp\objects\help.o temp\objects\touch.o temp\objects\write.o temp\objects\cat.o temp\objects\ls.o temp\objects\rm.o temp\objects\mkdir.o temp\objects\rmdir.o temp\objects\cp.o temp\objects\mv.o temp\objects\grep.o temp\objects\head.o temp\objects\tail.o temp\objects\more.o temp\objects\tree.o temp\objects\shell.o temp\objects\sched.o temp\objects\panic.o temp\objects\service.o temp\objects\glob.o temp\objects\pty.o temp\objects\input.o temp\objects\wm.o temp\objects\terminal_app.o temp\objects\myra_app.o temp\objects\calculator_app.o temp\objects\files_app.o temp\objects\cursor.o temp\objects\keyboard_tester_app.o temp\objects\editor_app.o temp\objects\edit.o temp\objects\files.o temp\objects\image.o temp\objects\image_viewer.o temp\objects\lodepng.o temp\objects\lodepng_glue.o temp\objects\view.o temp\objects\clear.o temp\objects\ps.o temp\objects\sleep.o temp\objects\wait.o temp\objects\kill.o temp\objects\ramfs_tools.o temp\objects\systemctl.o temp\objects\free.o temp\objects\debug_overlay.o -T linkers\linker.ld -o temp\elfs\kernel.elf -Map temp\maps\kernel.map 
+) 
+Linking for SIMULATION...
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-ld.exe" temp\objects\start.o temp\objects\mmu.o temp\objects\diskfs.o temp\objects\vectors.o temp\objects\swtch.o temp\objects\kernel.o temp\objects\uart.o temp\objects\palloc.o temp\objects\kmalloc.o temp\objects\ramfs.o temp\objects\lib.o temp\objects\syscall.o temp\objects\timer.o temp\objects\irq.o temp\objects\framebuffer.o temp\objects\virtio.o temp\objects\rpi_fx.o temp\objects\dma.o temp\objects\emmc.o temp\objects\emmc_clock.o temp\objects\usb.o temp\objects\init.o temp\objects\programs.o temp\objects\echo.o temp\objects\help.o temp\objects\touch.o temp\objects\write.o temp\objects\cat.o temp\objects\ls.o temp\objects\rm.o temp\objects\mkdir.o temp\objects\rmdir.o temp\objects\cp.o temp\objects\mv.o temp\objects\grep.o temp\objects\head.o temp\objects\tail.o temp\objects\more.o temp\objects\tree.o temp\objects\shell.o temp\objects\sched.o temp\objects\panic.o temp\objects\service.o temp\objects\glob.o temp\objects\pty.o temp\objects\input.o temp\objects\wm.o temp\objects\terminal_app.o temp\objects\myra_app.o temp\objects\calculator_app.o temp\objects\files_app.o temp\objects\cursor.o temp\objects\keyboard_tester_app.o temp\objects\editor_app.o temp\objects\edit.o temp\objects\files.o temp\objects\image.o temp\objects\image_viewer.o temp\objects\lodepng.o temp\objects\lodepng_glue.o temp\objects\view.o temp\objects\clear.o temp\objects\ps.o temp\objects\sleep.o temp\objects\wait.o temp\objects\kill.o temp\objects\ramfs_tools.o temp\objects\systemctl.o temp\objects\free.o temp\objects\debug_overlay.o -T linkers\linker.ld -o temp\elfs\kernel.elf -Map temp\maps\kernel.map 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call "aarch64\aarch64-none-elf-objcopy.bat" -O binary temp\elfs\kernel.elf temp\binaries\kernel8.img 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\mingw64\arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-aarch64-none-elf\bin\aarch64-none-elf-objcopy.exe" -O binary temp\elfs\kernel.elf temp\binaries\kernel8.img 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>if /I "" == "--real" (
+python make_rpi_boot.py  
+ echo. 
+ echo ============================================  
+ echo  Kernel built. Launching SD card flasher...  
+ echo ============================================  
+ python make_real_disk.py 
+) 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>set IS_REAL=0 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>if "" == "--real" set IS_REAL=1 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>if "" == "--real" set IS_REAL=1 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>if "0" == "1" exit /b 0 
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>echo Launching QEMU with SDL + ramfb (fallback) and virtio-gpu 
+Launching QEMU with SDL + ramfb (fallback) and virtio-gpu
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>call "qemu/qemu-system-aarch64.bat"   -machine virt   -cpu cortex-a53   -m 512M   -display sdl   -device virtio-gpu-device   -device virtio-mouse-device   -device virtio-keyboard-device   -device ramfb   -kernel temp/elfs/kernel.elf   -serial file:c:\Users\karthikkrazy\MYRASPOS\uart_abs.log   -drive if=none,file=disk.img,id=hd0,format=raw -device virtio-blk-device,drive=hd0  
+
+(cmd) c:\Users\karthikkrazy\MYRASPOS>"C:\msys64\ucrt64\bin\qemu-system-aarch64.exe" -machine virt   -cpu cortex-a53   -m 512M   -display sdl   -device virtio-gpu-device   -device virtio-mouse-device   -device virtio-keyboard-device   -device ramfb   -kernel temp/elfs/kernel.elf   -serial file:c:\Users\karthikkrazy\MYRASPOS\uart_abs.log   -drive if=none,file=disk.img,id=hd0,format=raw -device virtio-blk-device,drive=hd0 

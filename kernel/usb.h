@@ -43,6 +43,7 @@
 #define DWC2_HCINTMSK(n)  (0x50C + (n) * 0x20)
 #define DWC2_HCTSIZ(n)    (0x510 + (n) * 0x20)
 #define DWC2_HCDMA(n)     (0x514 + (n) * 0x20)
+#define DWC2_PCGCCTL      0xE00
 
 /* Standard USB Request Types */
 #define USB_REQ_GET_STATUS     0x00
@@ -93,11 +94,19 @@ struct usb_device_descriptor {
     uint8_t  bNumConfigurations;
 } __attribute__((packed));
 
-/* USB Keyboard Report */
+/* USB Keyboard Report (HID Boot Protocol) */
 struct usb_keyboard_report {
     uint8_t modifiers;
     uint8_t reserved;
     uint8_t keycodes[6];
+} __attribute__((packed));
+
+/* USB Mouse Report (HID Boot Protocol) */
+struct usb_mouse_report {
+    uint8_t buttons;  /* bit0=L, bit1=R, bit2=Middle */
+    int8_t  x;        /* relative X movement */
+    int8_t  y;        /* relative Y movement */
+    int8_t  wheel;    /* scroll wheel */
 } __attribute__((packed));
 
 /* Controller API */

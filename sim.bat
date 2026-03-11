@@ -1,6 +1,7 @@
 call build.bat %*
 set IS_REAL=0
-for %%A in (%*) do if /I "%%~A"=="--real" set IS_REAL=1
+if "%~1"=="--real" set IS_REAL=1
+if "%~2"=="--real" set IS_REAL=1
 if "%IS_REAL%"=="1" exit /b 0
 @REM call "qemu/qemu-system-aarch64.bat" -machine virt -cpu cortex-15 -nographic -kernel temp/binaries/kernel8.img -serial mon:stdio
 echo Launching QEMU with SDL + ramfb (fallback) and virtio-gpu

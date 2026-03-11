@@ -126,8 +126,14 @@ void init_start_shell(void) {
     virtio_gpu_flush();
 }
 
-void init_main(void *arg) {
+extern void init_main(void *arg) {
     (void)arg;
+    extern void fb_put_text(const char *s, int x, int y, uint32_t color);
+    extern void rpi_gpu_flush(void);
+    fb_put_text("INIT TASK STARTED!", 10, 420, 0xFF00FF00); // GREEN
+#ifdef REAL
+    rpi_gpu_flush();
+#endif
     static int initialized = 0;
     if (initialized) {
         for (;;) yield();
@@ -172,21 +178,21 @@ void init_main(void *arg) {
 #endif
 
     /* Start GUI and Input system */
-    // Always try to start GUI for now, even if input fails
+#ifndef REAL
     virtio_input_init();
-    
+#endif
+
     // Initialize VFS
     extern void files_init(void);
     files_init();
-    
-    // Initialize DiskFS and load assets
-#ifdef DEBUG
-    uart_puts("[init] DEBUG: about to init diskfs...\n");
-#endif
+
+    // Initialize DiskFS and sync files into ramfs BEFORE wm starts
+    uart_puts("[init] initializing diskfs...\n");
     extern void diskfs_init(void);
     extern void diskfs_sync_to_ramfs(void);
     diskfs_init();
     diskfs_sync_to_ramfs();
+    uart_puts("[init] diskfs ready — starting window manager...\n");
 
     init_puts("[init] GUI subsystem starting...\n");
     

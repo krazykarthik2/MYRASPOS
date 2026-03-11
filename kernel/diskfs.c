@@ -3,6 +3,8 @@
 #include "ramfs.h"
 #include "uart.h"
 #include "kmalloc.h"
+#include "debug_overlay.h"
+#include "rpi_fx.h"
 #include <string.h>
 
 #define MAX_DISK_FILES 128
@@ -10,13 +12,20 @@
 #define DIR_START_SECTOR 1
 #define DATA_START_SECTOR 128
 
+/* Aligned bounce buffer for sector I/O.
+ * EMMC FIFO reads/writes need 4-byte alignment; cache ops need 64-byte.
+ * Stack buffers may not satisfy either requirement. */
+static uint8_t sector_bounce[SECTOR_SIZE] __attribute__((aligned(64)));
+
 struct disk_entry {
     char name[64];
     uint32_t size;
     uint32_t start_sector;
 } __attribute__((packed));
 
-static struct disk_entry dir_cache[MAX_DISK_FILES];
+/* Aligned dir cache — must be 64-byte aligned so cache maintenance in rpi_blk_rw
+ * works correctly when we pass pointers into it. */
+static struct disk_entry dir_cache[MAX_DISK_FILES] __attribute__((aligned(64)));
 static int num_files = 0;
 static uint32_t next_free_sector = DATA_START_SECTOR;
 
@@ -50,19 +59,39 @@ static int find_file_index(const char *name) {
 }
 
 void diskfs_init(void) {
-    if (virtio_blk_init() < 0) {
-        uart_puts("[diskfs] virtio-blk not found, diskfs disabled.\n");
+#ifdef REAL
+    if (rpi_blk_init() < 0) {
+        uart_puts("[diskfs] RPi block device (EMMC) init failed, diskfs disabled.\n");
         return;
     }
+#else
+    if (virtio_blk_init() < 0) {
+        uart_puts("[diskfs] block device not found, diskfs disabled.\n");
+        return;
+    }
+#endif
 
-    /* Load directory from disk */
+    /* Load directory sectors using the aligned bounce buffer.
+     * We cannot pass dir_cache directly because its mid-array offsets
+     * (i * SECTOR_SIZE) may fall on non-64-byte boundaries when the
+     * cache maintenance code does dc ivac on the EMMC path. */
     int sectors_to_read = (sizeof(dir_cache) + SECTOR_SIZE - 1) / SECTOR_SIZE;
     for (int i = 0; i < sectors_to_read; i++) {
-        if (virtio_blk_rw(DIR_START_SECTOR + i, ((uint8_t *)dir_cache) + i * SECTOR_SIZE, 0) < 0) {
-             uart_puts("[diskfs] ERROR: failed to read directory sector ");
-             uart_put_hex(DIR_START_SECTOR + i);
-             uart_puts("\n");
+#ifdef REAL
+        if (rpi_blk_rw(DIR_START_SECTOR + i, sector_bounce, 0) < 0) {
+#else
+        if (virtio_blk_rw(DIR_START_SECTOR + i, sector_bounce, 0) < 0) {
+#endif
+            uart_puts("[diskfs] ERROR: failed to read dir sector ");
+            uart_put_hex(DIR_START_SECTOR + i);
+            uart_puts("\n");
+            continue;
         }
+        /* Copy bounce buf into the right slot of dir_cache */
+        size_t off = (size_t)i * SECTOR_SIZE;
+        size_t remain = sizeof(dir_cache) - off;
+        size_t copy = (remain < SECTOR_SIZE) ? remain : SECTOR_SIZE;
+        memcpy((uint8_t *)dir_cache + off, sector_bounce, copy);
     }
 
     /* Count files and find next free sector */
@@ -71,20 +100,31 @@ void diskfs_init(void) {
     for (int i = 0; i < MAX_DISK_FILES; i++) {
         if (dir_cache[i].name[0] != '\0') {
             num_files++;
-            uint32_t end = dir_cache[i].start_sector + (dir_cache[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
+            uint32_t end = dir_cache[i].start_sector +
+                           (dir_cache[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
             if (end > next_free_sector) next_free_sector = end;
         }
     }
-    uart_puts("[diskfs] directory loaded, "); uart_putu(num_files); uart_puts(" files found.\n");
-    uart_puts("[diskfs] initialized. files found="); uart_put_hex(num_files); uart_puts("\n");
+    uart_puts("[diskfs] ready, "); uart_putu(num_files); uart_puts(" files.\n");
+    dbg_set_diskfs(1, num_files);
 }
 
 static void save_dir(void) {
     int sectors_to_write = (sizeof(dir_cache) + SECTOR_SIZE - 1) / SECTOR_SIZE;
     for (int i = 0; i < sectors_to_write; i++) {
-        virtio_blk_rw(DIR_START_SECTOR + i, ((uint8_t *)dir_cache) + i * SECTOR_SIZE, 1);
+        /* Copy dir_cache slice → bounce buffer, then write */
+        size_t off = (size_t)i * SECTOR_SIZE;
+        size_t remain = sizeof(dir_cache) - off;
+        size_t copy = (remain < SECTOR_SIZE) ? remain : SECTOR_SIZE;
+        memset(sector_bounce, 0, SECTOR_SIZE);
+        memcpy(sector_bounce, (uint8_t *)dir_cache + off, copy);
+#ifdef REAL
+        rpi_blk_rw(DIR_START_SECTOR + i, sector_bounce, 1);
+#else
+        virtio_blk_rw(DIR_START_SECTOR + i, sector_bounce, 1);
+#endif
     }
-}                                            
+}
 
 int diskfs_create(const char *name) {
     if (num_files >= MAX_DISK_FILES) return -1;
@@ -115,8 +155,8 @@ int diskfs_write(const char *name, const void *buf, size_t len, size_t offset) {
         
         uint32_t start_s = dir_cache[i].start_sector + (offset / SECTOR_SIZE);
         uint32_t n_sectors = (len + SECTOR_SIZE - 1) / SECTOR_SIZE;
-        
-        uint8_t sector_buf[SECTOR_SIZE];
+        (void)n_sectors;
+
         const uint8_t *src = (const uint8_t *)buf;
         size_t remaining = len;
         uint32_t curr_s = start_s;
@@ -124,16 +164,31 @@ int diskfs_write(const char *name, const void *buf, size_t len, size_t offset) {
         while (remaining > 0) {
             size_t to_write = (remaining < SECTOR_SIZE) ? remaining : SECTOR_SIZE;
             if (to_write < SECTOR_SIZE) {
-                // Partial sector write
-                virtio_blk_rw(curr_s, sector_buf, 0); // Read first
-                memcpy(sector_buf, src, to_write);
-                virtio_blk_rw(curr_s, sector_buf, 1); // Write back
+                /* Partial sector: read-modify-write */
+#ifdef REAL
+                rpi_blk_rw(curr_s, sector_bounce, 0);
+#else
+                virtio_blk_rw(curr_s, sector_bounce, 0);
+#endif
+                memcpy(sector_bounce, src, to_write);
+#ifdef REAL
+                rpi_blk_rw(curr_s, sector_bounce, 1);
+#else
+                virtio_blk_rw(curr_s, sector_bounce, 1);
+#endif
             } else {
-                virtio_blk_rw(curr_s, (void *)src, 1);
+                /* Full sector: copy to aligned bounce buf then write */
+                memcpy(sector_bounce, src, SECTOR_SIZE);
+#ifdef REAL
+                rpi_blk_rw(curr_s, sector_bounce, 1);
+#else
+                virtio_blk_rw(curr_s, sector_bounce, 1);
+#endif
             }
             src += to_write;
             remaining -= to_write;
             curr_s++;
+            dbg_inc_write();
         }
 
         if (offset + len > dir_cache[i].size) {
@@ -154,24 +209,34 @@ int diskfs_read(const char *name, void *buf, size_t len, size_t offset) {
         if (offset + len > dir_cache[i].size) len = dir_cache[i].size - offset;
 
         uint32_t start_s = dir_cache[i].start_sector + (offset / SECTOR_SIZE);
-        uint8_t sector_buf[SECTOR_SIZE];
         uint8_t *dst = (uint8_t *)buf;
         size_t remaining = len;
         uint32_t curr_s = start_s;
         size_t skip = offset % SECTOR_SIZE;
 
         while (remaining > 0) {
-            virtio_blk_rw(curr_s, sector_buf, 0);
+#ifdef REAL
+            rpi_blk_rw(curr_s, sector_bounce, 0);
+#else
+            virtio_blk_rw(curr_s, sector_bounce, 0);
+#endif
             size_t to_copy = SECTOR_SIZE - skip;
             if (to_copy > remaining) to_copy = remaining;
-            memcpy(dst, sector_buf + skip, to_copy);
+            memcpy(dst, sector_bounce + skip, to_copy);
             dst += to_copy;
             remaining -= to_copy;
             curr_s++;
             skip = 0;
+            dbg_inc_read();
         }
         return len;
     }
+    return -1;
+}
+
+int diskfs_file_size(const char *name) {
+    int i = find_file_index(name);
+    if (i >= 0) return (int)dir_cache[i].size;
     return -1;
 }
 

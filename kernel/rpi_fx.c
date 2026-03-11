@@ -1,6 +1,7 @@
 #include "rpi_fx.h"
 #include "uart.h"
 #include "framebuffer.h"
+#include "debug_overlay.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -28,6 +29,20 @@ volatile unsigned int __attribute__((aligned(16))) mbox[36];
 
 void delay(unsigned int count) {
     while(count--) { asm volatile("nop"); }
+}
+
+uint32_t mailbox_clock_rate(uint32_t clock_id) {
+    mbox[0] = 9*4;
+    mbox[1] = 0;
+    mbox[2] = 0x30002; // get clock rate tag
+    mbox[3] = 12;
+    mbox[4] = 8;
+    mbox[5] = clock_id;
+    mbox[6] = 0;
+    mbox[7] = 0;
+    mbox[8] = 0;
+    if (mbox_call(MBOX_CH_PROP, (unsigned int *)mbox)) return mbox[6];
+    return 0;
 }
 
 int mbox_call(unsigned char ch, volatile unsigned int *buffer) {
@@ -190,9 +205,18 @@ int rpi_gpu_get_height(void) { return rpi_fb_h ? rpi_fb_h : 768; }
 int rpi_input_init(void) { return 0; }
 void rpi_input_poll(void) {}
 
-int rpi_blk_init(void) { return -1; }
+#include "dma.h"
+#include "peripherals/emmc.h"
+
+/* ====================================================================
+ *  Block Interface Wrappers
+ * ==================================================================== */
+
+int rpi_blk_init(void) {
+    return emmc_init_card();
+}
+
 int rpi_blk_rw(uint64_t sector, void *buf, int write) {
-    (void)sector; (void)buf; (void)write;
-    return -1;
+    return emmc_rw(sector, buf, write);
 }
 

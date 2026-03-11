@@ -1,4 +1,5 @@
 #include "sched.h"
+#include "framebuffer.h"
 #include "kmalloc.h"
 #include "uart.h"
 #include "mmu.h"
@@ -205,13 +206,6 @@ int task_create_with_stack(task_fn fn, void *arg, const char *name, size_t stack
         while(1);
     }
 
-    /*
-    uart_puts("[sched] created task "); uart_puts(t->name); 
-    uart_puts(" id="); uart_put_hex(t->id);
-    uart_puts(" addr="); uart_put_hex((uint32_t)(uintptr_t)t);
-    uart_puts(" stack_kb="); uart_put_hex(stack_kb);
-    uart_puts(" parent="); uart_put_hex(task_current_id()); uart_puts("\n");
-    */
     return t->id;
 }
 
@@ -395,15 +389,20 @@ static void reap_zombies(void) {
     }
 }
 
+extern void rpi_gpu_flush(void);
+extern void virtio_gpu_flush(void);
+#ifdef REAL
+    #define DBG_TEXT(y, msg, col) do { fb_draw_rect(0, y-500, screen_w, 20, 0xFF000000); fb_put_text(msg, 10, y-500, col); rpi_gpu_flush(); } while(0)
+#else
+    #define DBG_TEXT(y, msg, col) do { fb_draw_rect(0, y-500, screen_w, 20, 0xFF000000); fb_put_text(msg, 10, y-500, col); virtio_gpu_flush(); } while(0)
+#endif
+
 void schedule(void) {
     /* FIRST: Reap any zombie tasks from previous exits. safe because we're now
      * running on OS/boot stack or a different task's stack. */
     // Text debug output at bottom left of screen (y=600+)
-#ifdef DEBUG
-    #define DBG_TEXT(y, msg, col) do { DEBUG_PRINT(msg); uart_puts("\n"); } while(0)
-#else
-    #define DBG_TEXT(y, msg, col) do { } while(0)
-#endif
+
+
     DBG_TEXT(600, "Schedule: Entered...", 0xFFFFFFFF);
     
     reap_zombies();
@@ -413,10 +412,9 @@ void schedule(void) {
     /* update timer and dispatch polled IRQs */
     timer_poll_and_advance();
     
-    // Explicitly poll input without waiting for IRQ to maximize responsiveness in VM
-#ifndef REAL
-    virtio_input_poll();
-#endif
+    // Explicitly poll input and IO to ensure responsiveness
+    extern void irq_poll_and_dispatch(void);
+    irq_poll_and_dispatch();
     
     DBG_TEXT(640, "Schedule: Polled.", 0xFFFFFFFF);
 
@@ -444,9 +442,14 @@ void schedule(void) {
     unsigned long sched_flags = irq_save();
 
     /* Safety: if task_cur is NULL or not in list, treat as boot task */
-    if (!prev || (prev != &boot_task && ((uintptr_t)prev & 7) != 0)) {
+    if (!prev || (prev != &boot_task && ((uintptr_t)prev & 7) != 0) || prev->magic != 0xDEADC0DE) {
         prev = &boot_task;
         task_cur = &boot_task;
+    }
+
+    /* Double check task_head validity */
+    if (task_head && (((uintptr_t)task_head & 7) != 0 || task_head->magic != 0xDEADC0DE)) {
+        task_head = NULL;
     }
 
     DBG_TEXT(660, "Schedule: Safety Done. Scanning...", 0xFFFFFFFF);
@@ -566,21 +569,22 @@ void schedule(void) {
 
     // DEBUG: About to context switch
     DBG_TEXT(740, "Switching To Task...", 0xFF00FF00); // GREEN
-    #ifdef DEBUG
-    DEBUG_PRINT("Next Task: ");
-    uart_puts(next->name);
-    uart_puts("\n");
-    #endif
-    
-    
 
     /* Switch MMU if needed */
     mmu_switch(next->pgd);
 
+    DBG_TEXT(760, "Doing cpu_switch_to...", 0xFFFFFFFF);
+
     cpu_switch_to(&prev->context, &next->context);
+
+    DBG_TEXT(780, "cpu_switch_to returned!", 0xFFFFFFFF);
     
     /* Restore IRQs after returning from context switch */
     irq_restore(sched_flags);
+}
+
+void debug_ret_from_fork(void) {
+    DBG_TEXT(800, "IN RET_FROM_FORK!", 0xFF00FFFF);
 }
 
 void yield(void) {

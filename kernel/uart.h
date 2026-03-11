@@ -13,6 +13,7 @@ void delay(unsigned int ticks);
 void panic(const char *reason);
 char uart_getc(void);
 int uart_haschar(void);
+void uart_flush(void);
 
 /* Conditional Logging Macros */
 #ifdef DEBUG

@@ -18,7 +18,7 @@ shutil.copy("temp/binaries/kernel8.img",
 
 
 
-# shutil.copy("disk.img", f"{BOOT_DIR}/disk.img")
+shutil.copy("disk.img", f"{BOOT_DIR}/disk.img")  # Also available at raw sector 65536 via make_sd_image.py
 
 # Copy firmware
 dont_ship = [

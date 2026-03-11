@@ -21,6 +21,14 @@ void heartbeat_task(void *arg);
 
 void heartbeat_task(void *arg) {
     (void)arg;
+    
+    extern void fb_put_text(const char *s, int x, int y, uint32_t color);
+    extern void rpi_gpu_flush(void);
+    fb_put_text("HEARTBEAT TASK STARTED!", 10, 500, 0xFF00FF00); // GREEN
+#ifdef REAL
+    rpi_gpu_flush();
+#endif
+
 #ifdef DEBUG
     uart_puts("[heartbeat] task started\n");
 #endif
@@ -44,7 +52,6 @@ void kernel_main(void) {
     uart_init();     
 #ifdef DEBUG
     uart_puts("\n[kernel] UART START\n");
-    uart_puts("[kernel] alive\n");
 #endif
 
 #ifdef REAL
@@ -53,6 +60,10 @@ void kernel_main(void) {
         fb_fill(0xFF0000FF); // Start with RED
         fb_put_text_centered("MYRAS OS BOOTING (RPI)...", 0xFFFFFFFF);
         rpi_gpu_flush();
+    } else {
+#ifdef DEBUG
+        uart_puts("[kernel] GPU Init Failed!\n");
+#endif
     }
     extern int usb_init(void);
     usb_init();
@@ -62,13 +73,12 @@ void kernel_main(void) {
         fb_fill(0xFF0000FF); // Start with RED
         fb_put_text_centered("MYRAS OS BOOTING (VIRTIO)...", 0xFFFFFFFF);
         virtio_gpu_flush();
-    }
-#endif
-    else {
+    } else {
 #ifdef DEBUG
         uart_puts("[kernel] GPU Init Failed!\n");
 #endif
     }
+#endif
 
     /* 3. Kernel Subsystems */
 #ifdef DEBUG
@@ -101,7 +111,9 @@ void kernel_main(void) {
     uart_puts("done.\n");
     
     uart_puts("[kernel] mmu_init... ");
+    uart_flush();
     mmu_init();
+    uart_flush();
     // If we survive this, we change color again
     fb_fill(0xFFFFFF00); // Progress: YELLOW
     fb_put_text_centered("MMU ENABLED (IDENTITY)", 0xFF000000);
@@ -151,6 +163,7 @@ void kernel_main(void) {
     fb_get_res(&screen_w, &screen_h);
     
     fb_put_text_centered("LAUNCHING MULTITASKING...", 0xFFFFFFFF);
+    
     virtio_gpu_flush();
 #ifdef DEBUG
     uart_puts("[kernel] entering scheduler loop...\n");

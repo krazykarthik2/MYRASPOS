@@ -88,6 +88,7 @@ int irq_register(int irq_num, irq_handler_fn fn, void *arg) {
     return -1;
 }
 
+
 /* Dispatch handler for a specific IRQ number */
 void irq_dispatch(int irq_num) {
     for (int i = 0; i < MAX_IRQ_HANDLERS; ++i) {
@@ -116,14 +117,21 @@ void irq_entry_c(void) {
     volatile uint32_t *gicc_iar = (volatile uint32_t *)(GICC_BASE + GICC_IAR);
     volatile uint32_t *gicc_eoir = (volatile uint32_t *)(GICC_BASE + GICC_EOIR);
     
+#ifndef REAL
     uint32_t iar = *gicc_iar;
     uint32_t irq_num = iar & 0x3FF;
+#else
+    uint32_t iar = 0x3FF; /* SPURIOUS/NONE */
+    uint32_t irq_num = 1023;
+#endif
     
     if (irq_num < 1022) {
+#ifndef REAL
         /* Real IRQ from GIC */
         // uart_puts("[irq] handler for "); uart_put_hex(irq_num); uart_puts("\n");
         irq_dispatch((int)irq_num);
         *gicc_eoir = iar;
+#endif
     } else {
         /* Fallback for safety/timer tick from PPI if not in IAR */
         scheduler_tick_advance(1);

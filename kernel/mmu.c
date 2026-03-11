@@ -45,7 +45,7 @@ int mmu_map_table(uint64_t *pgd, uintptr_t va, uintptr_t pa, size_t size, uint64
     uintptr_t v_end = (va + size + 0xFFFULL) & ~0xFFFULL;
     uintptr_t p_ptr = pa & ~0xFFFULL;
 
-    for (uintptr_t v_ptr = v_start; v_ptr < v_end; v_ptr += PAGE_SIZE) {
+    for (uintptr_t v_ptr = v_start; v_ptr < v_end; ) {
         int l0_idx = (v_ptr >> 39) & 0x1FF;
         int l1_idx = (v_ptr >> 30) & 0x1FF;
         int l2_idx = (v_ptr >> 21) & 0x1FF;
@@ -55,15 +55,25 @@ int mmu_map_table(uint64_t *pgd, uintptr_t va, uintptr_t pa, size_t size, uint64
         if (!l1) return -1;
         uint64_t *l2 = get_next_level(l1, l1_idx, 1);
         if (!l2) return -1;
-        uint64_t *l3 = get_next_level(l2, l2_idx, 1);
-        if (!l3) return -1;
 
-        l3[l3_idx] = p_ptr | flags | PTE_VALID | PTE_PAGE;
-        
-        /* Flush L3 update */
-        __asm__ volatile("dc civac, %0" : : "r" (&l3[l3_idx]) : "memory");
+        /* Optimization: Use 2MB block if aligned and size allows */
+        if ((v_ptr & 0x1FFFFF) == 0 && (p_ptr & 0x1FFFFF) == 0 && (v_end - v_ptr) >= 0x200000) {
+            l2[l2_idx] = p_ptr | flags | PTE_VALID | PTE_BLOCK;
+            __asm__ volatile("dc civac, %0" : : "r" (&l2[l2_idx]) : "memory");
+            v_ptr += 0x200000;
+            p_ptr += 0x200000;
+        } else {
+            uint64_t *l3 = get_next_level(l2, l2_idx, 1);
+            if (!l3) return -1;
 
-        p_ptr += PAGE_SIZE;
+            l3[l3_idx] = p_ptr | flags | PTE_VALID | PTE_PAGE;
+            
+            /* Flush L3 update */
+            __asm__ volatile("dc civac, %0" : : "r" (&l3[l3_idx]) : "memory");
+
+            v_ptr += PAGE_SIZE;
+            p_ptr += PAGE_SIZE;
+        }
     }
     __asm__ volatile("dmb sy" ::: "memory");
     return 0;
@@ -149,14 +159,20 @@ void mmu_init(void) {
 #ifdef REAL
     /* Pi Zero 2 W has 512MB RAM (0x20000000) */
     // RAM (Kernel, BSS, Stack, Framebuffer)
-    // Removed SH_INNER for now to be safe against interconnect issues
-    mmu_map(0, 0, 0x20000000, PTE_AF | PTE_MEMATTR_NORMAL);
+    // PTE_SH_INNER is important to match TCR and prevent interconnect hangs
+    uart_puts("  mapping RAM... ");
+    mmu_map(0, 0, 0x20000000, PTE_AF | PTE_SH_INNER | PTE_MEMATTR_NORMAL);
+    uart_puts("done.\n");
 
     // Peripherals (UART, Mailbox, EMMC, etc.) - BCM2837 base
+    uart_puts("  mapping BCM2837 peri... ");
     mmu_map(0x3F000000, 0x3F000000, 0x01000000, PTE_AF | PTE_MEMATTR_DEVICE);
+    uart_puts("done.\n");
 
     // ARM Local Peripherals (Timers, IRQ routing)
+    uart_puts("  mapping Local peri... ");
     mmu_map(0x40000000, 0x40000000, 0x01000000, PTE_AF | PTE_MEMATTR_DEVICE);
+    uart_puts("done.\n");
 #else
     // Peripherals (UART, GIC, Virtio, etc.)
     mmu_map(0, 0, 0x40000000, PTE_AF | PTE_MEMATTR_DEVICE);
@@ -181,8 +197,8 @@ void mmu_init(void) {
     uart_puts("[mmu] Enabling MMU...\n");
 #endif
 
-    /* Invalidate TLBs */
-    __asm__ volatile("tlbi vmalle1is");
+    /* Invalidate TLBs locally for stability */
+    __asm__ volatile("tlbi vmalle1");
     __asm__ volatile("dsb sy");
     __asm__ volatile("isb");
 

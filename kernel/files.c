@@ -24,19 +24,32 @@ void files_init(void) {
 static int load_from_disk_if_needed(const char *path) {
     if (ramfs_get_size(path) >= 0) return 0; /* Exists in RAM */
 
-    /* Check diskfs by attempting to read */
-    void *tmp = kmalloc(65536);
-    if (!tmp) return -1;
-    
-    int r = diskfs_read(path, tmp, 65536, 0);
-    if (r < 0) {
+    /* Query exact size on disk first */
+    int size = diskfs_file_size(path);
+    if (size < 0) return -1;          /* not on disk either */
+    if (size == 0) {
+        /* Empty file — create empty entry in ramfs */
+        ramfs_create(path);
+        return 0;
+    }
+
+    void *tmp = kmalloc((size_t)size);
+    if (!tmp) {
+        uart_puts("[files] kmalloc failed loading: ");
+        uart_puts(path);
+        uart_puts("\n");
+        return -1;
+    }
+
+    int r = diskfs_read(path, tmp, (size_t)size, 0);
+    if (r <= 0) {
         kfree(tmp);
         return -1;
     }
-    
+
     /* Found in disk, create in RAM */
     ramfs_create(path);
-    ramfs_write(path, tmp, r, 0);
+    ramfs_write(path, tmp, (size_t)r, 0);
     kfree(tmp);
     return 0;
 }

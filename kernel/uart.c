@@ -110,6 +110,11 @@ int uart_haschar(void) {
     return !(mmio_read(UART_FR) & (1 << 4));
 }
 
+void uart_flush(void) {
+    /* Wait until TXFF (transmit FIFO full) is clear and TXFE is set or BUSY is clear. PL011 FR bit 3 is BUSY */
+    while (mmio_read(UART_FR) & (1 << 3));
+}
+
 void panic(const char *reason) {
     _uart_puts("\n\033[1;31m[PANIC] \033[0m");
     _uart_puts(reason);

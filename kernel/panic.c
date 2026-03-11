@@ -5,6 +5,9 @@
 #include "sched.h"
 #include "irq.h"
 #include "syscall.h"
+#include "framebuffer.h"
+
+extern int screen_w, screen_h;
 
 static void print_hex(uintptr_t x) {
     char buf[2 + sizeof(uintptr_t) * 2 + 1];
@@ -44,7 +47,16 @@ void panic_with_trace(const char *msg) {
 
     while (1) ;
 }
+extern void fb_put_text(const char *s, int x, int y, uint32_t color);
 
+
+extern void rpi_gpu_flush(void);
+extern void virtio_gpu_flush(void);
+#ifdef REAL
+    #define DBG_TEXT(y, msg, col) do { fb_draw_rect(0, y-500, screen_w, 20, 0xFF000000); fb_put_text(msg, 10, y-500, col); rpi_gpu_flush(); } while(0)
+#else
+    #define DBG_TEXT(y, msg, col) do { fb_draw_rect(0, y-500, screen_w, 20, 0xFF000000); fb_put_text(msg, 10, y-500, col); virtio_gpu_flush(); } while(0)
+#endif
 extern void irq_entry_c(void);
 
 void exception_c_handler(int type, uint64_t esr, uint64_t elr, struct pt_regs *regs) {
@@ -81,6 +93,7 @@ void exception_c_handler(int type, uint64_t esr, uint64_t elr, struct pt_regs *r
         return;
     }
 
+    DBG_TEXT(800,"\n[PANIC] EXCEPTION OCCURRED!\n",0xFFFFFFFF);
     uart_puts("\n[PANIC] EXCEPTION OCCURRED!\n");
     uart_puts("Type: "); print_hex((uintptr_t)type); uart_puts("\n");
     uart_puts("ESR:  "); print_hex((uintptr_t)esr);  uart_puts("\n");
@@ -90,5 +103,38 @@ void exception_c_handler(int type, uint64_t esr, uint64_t elr, struct pt_regs *r
     asm("mrs %0, far_el1" : "=r"(far));
     uart_puts("FAR:  "); print_hex((uintptr_t)far);  uart_puts("\n");
     
+
+    
+    char buf_type[64] = "Type: 0x0000000000000000";
+    char buf_esr[64]  = "ESR:  0x0000000000000000";
+    char buf_elr[64]  = "ELR:  0x0000000000000000";
+    char buf_far[64]  = "FAR:  0x0000000000000000";
+    
+    for (int i = 15; i >= 0; --i) {
+        int v = (type >> (i * 4)) & 0xF;
+        buf_type[8 + 15 - i] = (v < 10) ? ('0' + v) : ('A' + (v - 10));
+        
+        v = (esr >> (i * 4)) & 0xF;
+        buf_esr[8 + 15 - i] = (v < 10) ? ('0' + v) : ('A' + (v - 10));
+        
+        v = (elr >> (i * 4)) & 0xF;
+        buf_elr[8 + 15 - i] = (v < 10) ? ('0' + v) : ('A' + (v - 10));
+        
+        v = (far >> (i * 4)) & 0xF;
+        buf_far[8 + 15 - i] = (v < 10) ? ('0' + v) : ('A' + (v - 10));
+    }
+    
+    fb_put_text("PANIC: EXCEPTION OCCURRED!", 50, 100, 0xFF0000FF);
+    fb_put_text(buf_type, 50, 120, 0xFF0000FF);
+    fb_put_text(buf_esr, 50, 140, 0xFF0000FF);
+    fb_put_text(buf_elr, 50, 160, 0xFF0000FF);
+    fb_put_text(buf_far, 50, 180, 0xFF0000FF);
+    
+#ifdef REAL
+    rpi_gpu_flush();
+#else
+    virtio_gpu_flush();
+#endif
+
     panic_with_trace("Exception");
 }

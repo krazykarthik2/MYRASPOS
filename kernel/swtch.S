@@ -40,10 +40,24 @@ cpu_switch_to:
  * Called when a new task starts for the first time.
  */
 ret_from_fork:
-    /* Enable IRQs for new task */
+#ifndef REAL
+    /* Enable IRQs for new task (only in simulation) */
     msr daifclr, #2
+#endif
+
+    /* Debug print */
+    stp x0, x1, [sp, #-16]!
+    stp x2, x3, [sp, #-16]!
+    stp x19, x20, [sp, #-16]!
+    str x30, [sp, #-16]!
+    bl debug_ret_from_fork
+    ldr x30, [sp], #16
+    ldp x19, x20, [sp], #16
+    ldp x2, x3, [sp], #16
+    ldp x0, x1, [sp], #16
+
     
-    /* Call task function directly - no debug overhead */
+    /* Call task function directly */
     mov x0, x20    /* Argument to x0 */
     blr x19        /* Call task function */
     

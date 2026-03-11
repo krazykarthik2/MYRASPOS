@@ -12,6 +12,9 @@
 #include "apps/myra_app.h"
 #include "cursor.h"
 #include "image.h"
+#ifdef REAL
+#include "debug_overlay.h"
+#endif
 
 static struct window *window_list = NULL;
 static struct window *focused_window = NULL;
@@ -586,6 +589,12 @@ void wm_compose(void) {
     
     /* After full redraw, we must SAVE the NEW background under the cursor */
     save_bg(mx, my);
+
+#ifdef REAL
+    /* Debug overlay: drawn BEFORE cursor so it's visible under cursor */
+    dbg_draw_overlay(screen_w, screen_h);
+#endif
+
     draw_cursor_overlay(mx, my);
     wm_last_mx = mx; wm_last_my = my;
     

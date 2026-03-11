@@ -34,7 +34,7 @@ static void unlock(unsigned long flags) {
 
 /* Normalized mouse state */
 static int mouse_x = 0, mouse_y = 0, mouse_btn = 0;
-static int screen_w = 800, screen_h = 600;
+extern int screen_w, screen_h;
 
 static uint8_t ascii_to_scan(char c) {
     /* Mapping based on wm.c's scan_to_ascii table */
